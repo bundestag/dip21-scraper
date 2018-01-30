@@ -1,0 +1,12 @@
+{
+  "name": "bt-scraper",
+  "version": "0.0.1",
+  "description": "scraper for the german \"Bundestag\"",
+  "main": "index.js",
+  "author": "Manuel Ruck",
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^1.0.0",
+    "x2js": "^3.1.1"
+  }
+}
