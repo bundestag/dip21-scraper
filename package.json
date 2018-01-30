@@ -2,11 +2,19 @@
   "name": "bt-scraper",
   "version": "0.0.1",
   "description": "scraper for the german \"Bundestag\"",
-  "main": "index.js",
+  "main": "src/index.js",
   "author": "Manuel Ruck",
   "license": "MIT",
   "dependencies": {
+    "cli-progress": "^1.7.0",
+    "commander": "^2.13.0",
+    "inquirer": "^5.0.1",
+    "jsonfile": "^4.0.0",
+    "node-gyp": "^3.6.2",
     "puppeteer": "^1.0.0",
     "x2js": "^3.1.1"
+  },
+  "scripts": {
+    "start": "node src/index.js"
   }
 }
