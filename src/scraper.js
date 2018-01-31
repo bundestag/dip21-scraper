@@ -111,10 +111,21 @@ class Scraper {
   }
 
   async clickWait(selector) {
-    return await Promise.all([
-      this.page.waitForNavigation({ waitUntil: ["domcontentloaded"] }),
-      this.page.click(selector)
-    ]);
+    try {
+      return await Promise.all([
+        this.page.waitForNavigation({
+          timeout: 300000,
+          waitUntil: ["networkidle2", "domcontentloaded"]
+        }),
+        this.page.click(selector)
+      ]);
+    } catch (error) {
+      await this.page.goBack({
+        timeout: 300000,
+        waitUntil: ["domcontentloaded"]
+      });
+      await this.clickWait(selector);
+    }
   }
 
   async finish() {
