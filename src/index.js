@@ -25,7 +25,6 @@ async function scrape() {
     choices: periods
   });
   await scraper.selectPeriod(period.value);
-  await scraper.screenshot();
   const operationTypes = await scraper.takeOperationTypes();
   const operationType = await inquirer.prompt({
     type: "checkbox",
@@ -34,22 +33,24 @@ async function scrape() {
     choices: operationTypes
   });
   await scraper.selectOperationTypes(operationType.values);
-  const resultCount = await scraper.search();
-  await scraper.selectFirstEntry();
-
+  const resultsInfo = await scraper.search();
+  let links = await scraper.getEntriesFromSearch(resultsInfo);
   var bar1 = new _progress.Bar({}, _progress.Presets.shades_classic);
-  bar1.start(resultCount, 0);
-  for (i = 1; i <= resultCount; i++) {
-    await scraper.saveJson();
-
-    //console.log(i);
-    bar1.update(i);
-    if (i < resultCount) {
-      await scraper.goToNextEntry();
-    } else {
-      bar1.stop();
+  bar1.start(resultsInfo.entriesSum, 0);
+  while (links.filter(({ scraped }) => !scraped).length > 0) {
+    let linkIndex = links.findIndex(({ scraped }) => !scraped);
+    if (links[linkIndex]) {
+      try {
+        await scraper.saveJson(links[linkIndex].url, linkIndex);
+        links[linkIndex].scraped = true;
+      } catch (error) {}
     }
+    bar1.update(
+      resultsInfo.entriesSum - links.filter(({ scraped }) => !scraped).length
+    );
   }
+
+  bar1.stop();
   await scraper.finish();
 }
 

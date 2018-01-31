@@ -1,6 +1,7 @@
 const puppeteer = require("puppeteer");
 const X2JS = require("x2js");
 const jsonfile = require("jsonfile");
+var _progress = require("cli-progress");
 
 const x2j = new X2JS();
 
@@ -52,12 +53,52 @@ class Scraper {
   }
 
   async search() {
-    const reg = /von (\d*)\)/;
     await this.clickWait("input#btnSuche");
+    return this.getResultInfos();
+  }
+
+  async getResultInfos() {
+    const reg = /Seite (\d*) von (\d*) \(Treffer (\d*) bis (\d*) von (\d*)\)/;
     const resultsNumberString = await this.page.evaluate(sel => {
       return document.querySelector(sel).outerHTML;
     }, "#inhaltsbereich");
-    return resultsNumberString.match(reg)[1];
+    const paginator = resultsNumberString.match(reg);
+    return {
+      pageCurrent: paginator[1],
+      pageSum: paginator[2],
+      entriesFrom: paginator[3],
+      entriesTo: paginator[4],
+      entriesSum: paginator[5]
+    };
+  }
+
+  async getEntriesFromSearch() {
+    let links = [];
+    const resultInfos = await this.getResultInfos();
+    console.log("get Links");
+    var bar1 = new _progress.Bar({}, _progress.Presets.shades_classic);
+    bar1.start(resultInfos.pageSum, resultInfos.pageCurrent);
+    for (let i = resultInfos.pageCurrent; i <= resultInfos.pageSum; i++) {
+      let pageLinks = await this.getEntriesFromPage();
+      links = links.concat(pageLinks);
+      let curResultInfos = await this.getResultInfos();
+      bar1.update(curResultInfos.pageCurrent);
+      if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
+        await this.clickWait(
+          "#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input"
+        );
+      } else {
+        bar1.stop();
+      }
+    }
+    return links;
+  }
+
+  async getEntriesFromPage() {
+    return await this.page.$$eval(
+      "#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody a.linkIntern",
+      els => els.map(el => ({ url: el.href, scraped: false }))
+    );
   }
 
   async selectFirstEntry() {
@@ -76,22 +117,22 @@ class Scraper {
     );
   }
 
-  async saveJson() {
+  async saveJson(link, index) {
+    let page = await this.browser.newPage();
     var processId = /\[ID:&nbsp;(.*?)\]/;
     var xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
-    let content = await this.page.evaluate(sel => {
+    await page.goto(link);
+    let content = await page.evaluate(sel => {
       return document.querySelector(sel).innerHTML;
     }, "#inhaltsbereich");
 
-    const process = content.match(processId)[1];
+    let process = content.match(processId)[1];
 
-    const html = await this.page.content();
-    const xmlString = html
-      .match(xmlRegex)[0]
-      .replace("<- VORGANGSABLAUF ->", "");
+    let html = await page.content();
+    let xmlString = html.match(xmlRegex)[0].replace("<- VORGANGSABLAUF ->", "");
 
     var data = x2j.xml2js(xmlString);
-    const processData = {
+    let processData = {
       process,
       ...data
     };
@@ -104,27 +145,27 @@ class Scraper {
       },
       err => {}
     );
+    await page.close();
   }
 
-  async screenshot() {
-    await this.page.screenshot({ path: `screenshot.png` });
+  async screenshot(path, page = this.page) {
+    let height = await this.page.evaluate(
+      () => document.documentElement.offsetHeight
+    );
+    await page.setViewport({ width: 1000, height: height });
+    await page.screenshot({ path });
   }
 
   async clickWait(selector) {
     try {
       return await Promise.all([
         this.page.waitForNavigation({
-          timeout: 300000,
-          waitUntil: ["networkidle2", "domcontentloaded"]
+          waitUntil: ["domcontentloaded"]
         }),
         this.page.click(selector)
       ]);
     } catch (error) {
-      await this.page.goBack({
-        timeout: 300000,
-        waitUntil: ["domcontentloaded"]
-      });
-      await this.clickWait(selector);
+      console.log("TIMEOUT");
     }
   }
 
