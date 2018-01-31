@@ -2,6 +2,7 @@ const puppeteer = require("puppeteer");
 const X2JS = require("x2js");
 const jsonfile = require("jsonfile");
 var _progress = require("cli-progress");
+const fs = require("fs-extra");
 
 const x2j = new X2JS();
 
@@ -136,8 +137,12 @@ class Scraper {
       process,
       ...data
     };
+    const directory = `files/${processData.VORGANG.WAHLPERIODE}/${
+      processData.VORGANG.VORGANGSTYP
+    }`;
+    await fs.ensureDir(directory);
     await jsonfile.writeFile(
-      `files/${process}.json`,
+      `${directory}/${process}.json`,
       processData,
       {
         spaces: 2,
