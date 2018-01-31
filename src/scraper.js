@@ -10,6 +10,21 @@ class Scraper {
   async init() {
     this.browser = await puppeteer.launch();
     this.page = await this.browser.newPage();
+
+    await this.page.setRequestInterception(true);
+    this.page.on("request", request => {
+      switch (request.resourceType()) {
+        case "image":
+        case "script":
+        case "stylesheet":
+          request.abort();
+          break;
+
+        default:
+          request.continue();
+          break;
+      }
+    });
   }
 
   async start() {
@@ -125,7 +140,8 @@ class Scraper {
   }
 
   async saveJson(link, index) {
-    let page = await this.browser.newPage();
+    let page = this.page;
+
     var processId = /\[ID:&nbsp;(.*?)\]/;
     var xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
     await page.goto(link);
@@ -147,7 +163,7 @@ class Scraper {
       processData.VORGANG.VORGANGSTYP
     }`;
     await fs.ensureDir(directory);
-    await jsonfile.writeFile(
+    jsonfile.writeFile(
       `${directory}/${process}.json`,
       processData,
       {
@@ -156,7 +172,6 @@ class Scraper {
       },
       err => {}
     );
-    await page.close();
   }
 
   async screenshot(path, page = this.page) {
