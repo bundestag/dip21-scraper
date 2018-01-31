@@ -35,7 +35,13 @@ async function scrape() {
   await scraper.selectOperationTypes(operationType.values);
   const resultsInfo = await scraper.search();
   let links = await scraper.getEntriesFromSearch(resultsInfo);
-  var bar1 = new _progress.Bar({}, _progress.Presets.shades_classic);
+  var bar1 = new _progress.Bar(
+    {
+      format:
+        "progress [{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total}"
+    },
+    _progress.Presets.shades_classic
+  );
   bar1.start(resultsInfo.entriesSum, 0);
   while (links.filter(({ scraped }) => !scraped).length > 0) {
     let linkIndex = links.findIndex(({ scraped }) => !scraped);

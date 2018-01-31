@@ -77,7 +77,13 @@ class Scraper {
     let links = [];
     const resultInfos = await this.getResultInfos();
     console.log("get Links");
-    var bar1 = new _progress.Bar({}, _progress.Presets.shades_classic);
+    var bar1 = new _progress.Bar(
+      {
+        format:
+          "progress [{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total}"
+      },
+      _progress.Presets.shades_classic
+    );
     bar1.start(resultInfos.pageSum, resultInfos.pageCurrent);
     for (let i = resultInfos.pageCurrent; i <= resultInfos.pageSum; i++) {
       let pageLinks = await this.getEntriesFromPage();
