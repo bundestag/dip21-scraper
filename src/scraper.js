@@ -3,8 +3,17 @@ const X2JS = require("x2js");
 const jsonfile = require("jsonfile");
 var _progress = require("cli-progress");
 const fs = require("fs-extra");
+const Url = require("url");
+const Querystring = require("querystring");
 
 const x2j = new X2JS();
+
+const URLS = {
+  basisInfos:
+    "https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail.do",
+  processRunning:
+    "https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail_vp.do"
+};
 
 class Scraper {
   async init() {
@@ -38,6 +47,9 @@ class Scraper {
   }
 
   async takePeriods() {
+    await this.screenshot("test.png");
+    await this.page.waitForSelector("input#btnSuche", { timeout: 5000 });
+    await this.screenshot("test2.png");
     const selectField = await this.page.evaluate(sel => {
       return document.querySelector(sel).outerHTML;
     }, "#wahlperiode");
@@ -75,6 +87,7 @@ class Scraper {
 
   async getResultInfos() {
     const reg = /Seite (\d*) von (\d*) \(Treffer (\d*) bis (\d*) von (\d*)\)/;
+    this.page.waitForSelector("#inhaltsbereich");
     const resultsNumberString = await this.page.evaluate(sel => {
       return document.querySelector(sel).outerHTML;
     }, "#inhaltsbereich");
@@ -151,13 +164,18 @@ class Scraper {
 
     let process = content.match(processId)[1];
 
-    let html = await page.content();
-    let xmlString = html.match(xmlRegex)[0].replace("<- VORGANGSABLAUF ->", "");
+    const urlObj = Url.parse(link);
+    const queryObj = Querystring.parse(urlObj.query);
+    const vorgangId = queryObj.selId;
 
-    var data = x2j.xml2js(xmlString);
+    var dataProcess = await this.getProcessData(link, page);
+    var dataProcessRunning = await this.getProcessRunningData(vorgangId, page);
+    await this.getCoAdvisedOperationsData(vorgangId, page);
+
     let processData = {
-      process,
-      ...data
+      vorgangId,
+      ...dataProcess,
+      ...dataProcessRunning
     };
     const directory = `files/${processData.VORGANG.WAHLPERIODE}/${
       processData.VORGANG.VORGANGSTYP
@@ -174,6 +192,36 @@ class Scraper {
     );
   }
 
+  async getProcessData(link, page) {
+    var xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
+    let html = await page.content();
+    let xmlString = html.match(xmlRegex)[0].replace("<- VORGANGSABLAUF ->", "");
+
+    return x2j.xml2js(xmlString);
+  }
+
+  async getProcessRunningData(vorgangId, page) {
+    await page.goto(`${URLS.processRunning}?vorgangId=${vorgangId}`, {
+      timeout: 5000
+    });
+    var xmlRegex = /<VORGANGSABLAUF>(.|\n)*?<\/VORGANGSABLAUF>/;
+    let html = await page.content();
+    let xmlString = html.match(xmlRegex)[0];
+
+    return x2j.xml2js(xmlString);
+  }
+
+  async getCoAdvisedOperationsData(vorgangId, page) {
+    // #nocss1 > fieldset > div > ul
+    const tabLength = await this.page.evaluate(sel => {
+      return document.querySelectorAll("#nocss1 > fieldset > div > ul a")
+        .length;
+    });
+    if (tabLength > 1) {
+      console.log(`#+#+#+#+#+#+#+#+#+#+#+#+#+# vorgangId: ${vorgangId}`);
+    }
+  }
+
   async screenshot(path, page = this.page) {
     let height = await this.page.evaluate(
       () => document.documentElement.offsetHeight
@@ -185,10 +233,11 @@ class Scraper {
   async clickWait(selector) {
     try {
       return await Promise.all([
+        this.page.click(selector),
         this.page.waitForNavigation({
           waitUntil: ["domcontentloaded"]
         }),
-        this.page.click(selector)
+        this.page.waitForSelector("#footer")
       ]);
     } catch (error) {
       console.log("TIMEOUT");
