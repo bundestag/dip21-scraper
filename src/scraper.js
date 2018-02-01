@@ -47,9 +47,7 @@ class Scraper {
   }
 
   async takePeriods() {
-    await this.screenshot("test.png");
     await this.page.waitForSelector("input#btnSuche", { timeout: 5000 });
-    await this.screenshot("test2.png");
     const selectField = await this.page.evaluate(sel => {
       return document.querySelector(sel).outerHTML;
     }, "#wahlperiode");
