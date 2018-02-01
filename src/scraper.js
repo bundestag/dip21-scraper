@@ -91,11 +91,11 @@ class Scraper {
   async getEntriesFromSearch() {
     let links = [];
     const resultInfos = await this.getResultInfos();
-    console.log("get Links");
+    console.log("Eintragslinks sammeln");
     var bar1 = new _progress.Bar(
       {
         format:
-          "progress [{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total}"
+          "[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total}"
       },
       _progress.Presets.shades_classic
     );

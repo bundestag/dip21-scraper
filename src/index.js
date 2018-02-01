@@ -35,10 +35,11 @@ async function scrape() {
   await scraper.selectOperationTypes(operationType.values);
   const resultsInfo = await scraper.search();
   let links = await scraper.getEntriesFromSearch(resultsInfo);
+  console.log("Einträge downloaden");
   var bar1 = new _progress.Bar(
     {
       format:
-        "progress [{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total}"
+        "[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total}"
     },
     _progress.Presets.shades_classic
   );
