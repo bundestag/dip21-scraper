@@ -36,6 +36,39 @@ class Scraper {
     });
   }
 
+  createBrowserStack(number) {
+    return [...Array(number)].map(async () => {
+      const browser = await puppeteer.launch();
+      const page = await browser.newPage();
+      try {
+        await page.setRequestInterception(true);
+        page.on("request", request => {
+          switch (request.resourceType()) {
+            case "image":
+            case "script":
+            case "stylesheet":
+              request.abort();
+              break;
+
+            default:
+              request.continue();
+              break;
+          }
+        });
+        await page.goto("https://dipbt.bundestag.de/dip21.web/bt", {
+          timeout: 60000
+        });
+      } catch (error) {
+        return new Promise(resolve => resolve());
+      }
+      return {
+        browser,
+        page,
+        used: false
+      };
+    });
+  }
+
   async start() {
     await this.page.goto("https://dipbt.bundestag.de/dip21.web/bt");
   }
@@ -150,12 +183,13 @@ class Scraper {
     );
   }
 
-  async saveJson(link, index) {
-    let page = this.page;
+  async saveJson(link, index, page) {
+    // let page = this.page;
 
     var processId = /\[ID:&nbsp;(.*?)\]/;
     var xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
-    await page.goto(link);
+    await page.goto(link, { timeout: 10000 }).catch(err => console.log(err));
+
     let content = await page.evaluate(sel => {
       return document.querySelector(sel).innerHTML;
     }, "#inhaltsbereich");
@@ -168,7 +202,7 @@ class Scraper {
 
     var dataProcess = await this.getProcessData(link, page);
     var dataProcessRunning = await this.getProcessRunningData(vorgangId, page);
-    await this.getCoAdvisedOperationsData(vorgangId, page);
+    //await this.getCoAdvisedOperationsData(vorgangId, page);
 
     let processData = {
       vorgangId,

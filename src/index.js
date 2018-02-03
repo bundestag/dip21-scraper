@@ -13,8 +13,14 @@ program.parse(process.argv);
 
 const scraper = new Scraper();
 
+function timeout(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function scrape() {
   await scraper.init();
+  const stack = await Promise.all(scraper.createBrowserStack(8));
+  // console.log(stack);
   await scraper.start();
   await scraper.goToSearch();
   const periods = await scraper.takePeriods();
@@ -44,19 +50,40 @@ async function scrape() {
     _progress.Presets.shades_classic
   );
   bar1.start(resultsInfo.entriesSum, 0);
-  while (links.filter(({ scraped }) => !scraped).length > 0) {
+  while (
+    links.filter(({ scraped }) => !scraped).length > 0 ||
+    stack.find(b => b.used)
+  ) {
     let linkIndex = links.findIndex(({ scraped }) => !scraped);
-    if (links[linkIndex]) {
+    const freeBrowser = stack.find(b => !b.used);
+    if (freeBrowser) {
       try {
-        await scraper.saveJson(links[linkIndex].url, linkIndex);
-        links[linkIndex].scraped = true;
-      } catch (error) {}
+        if (links[linkIndex]) {
+          links[linkIndex].scraped = true;
+          freeBrowser.used = true;
+          scraper
+            .saveJson(links[linkIndex].url, linkIndex, freeBrowser.page)
+            .then(() => {
+              //console.log("success");
+              freeBrowser.used = false;
+              bar1.update(
+                resultsInfo.entriesSum -
+                  links.filter(({ scraped }) => !scraped).length
+              );
+            })
+            .catch(err => {
+              links[linkIndex].scraped = false;
+              console.log(err);
+              freeBrowser.used = false;
+            });
+        }
+      } catch (error) {
+        console.log(error);
+      }
     }
-    bar1.update(
-      resultsInfo.entriesSum - links.filter(({ scraped }) => !scraped).length
-    );
+    await timeout(100);
   }
-
+  stack.forEach(b => b.browser.close());
   bar1.stop();
   await scraper.finish();
 }
