@@ -64,9 +64,48 @@ class Scraper {
       return {
         browser,
         page,
-        used: false
+        used: false,
+        errorCount: 0
       };
     });
+  }
+
+  async createNewBrowser(browserObject) {
+    // console.log("### create new Browser");
+    if (browserObject.browser) {
+      await browserObject.browser.close();
+    }
+    try {
+      let browser = await puppeteer.launch();
+      let page = await browser.newPage();
+      await page.setRequestInterception(true);
+      page.on("request", request => {
+        switch (request.resourceType()) {
+          case "image":
+          case "script":
+          case "stylesheet":
+            request.abort();
+            break;
+
+          default:
+            request.continue();
+            break;
+        }
+      });
+      await page.goto("https://dipbt.bundestag.de/dip21.web/bt", {
+        timeout: 10000
+      });
+      // console.log("new Browser created!");
+      return {
+        browser,
+        page,
+        used: false,
+        errorCount: 0
+      };
+    } catch (error) {
+      // console.log("### new Browser failed", error);
+      this.createNewBrowser(browserObject);
+    }
   }
 
   async start() {
@@ -188,7 +227,7 @@ class Scraper {
 
     var processId = /\[ID:&nbsp;(.*?)\]/;
     var xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
-    await page.goto(link, { timeout: 10000 }).catch(err => console.log(err));
+    await page.goto(link, { timeout: 5000 });
 
     let content = await page.evaluate(sel => {
       return document.querySelector(sel).innerHTML;
