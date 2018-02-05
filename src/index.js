@@ -57,7 +57,7 @@ async function scrape() {
   );
   bar1.start(resultsInfo.entriesSum, 0, {
     errorCounter: stack.map(
-      ({ errorCount }) => (errorCount ? errorCount.red : `${errorCount}`.red)
+      ({ errorCount }) => (errorCount < 1 ? errorCount : `${errorCount}`.red)
     )
   });
 
@@ -70,7 +70,7 @@ async function scrape() {
       bar1.update(completedLinks, {
         errorCounter: stack.map(
           ({ errorCount }) =>
-            errorCount ? errorCount.red : `${errorCount}`.red
+            errorCount < 1 ? errorCount : `${errorCount}`.red
         )
       });
     });
@@ -93,7 +93,7 @@ async function scrape() {
                 bar1.update(completedLinks, {
                   errorCounter: stack.map(
                     ({ errorCount }) =>
-                      errorCount ? errorCount.red : `${errorCount}`.red
+                      errorCount < 1 ? errorCount : `${errorCount}`.red
                   )
                 });
               })
