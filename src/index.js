@@ -12,7 +12,7 @@ var colors = require("colors");
 
 var fs = require("fs"),
   Log = require("log"),
-  log = new Log("debug", fs.createWriteStream("my.log"));
+  log = new Log("debug", fs.createWriteStream(`log-${Date()}.log`));
 
 program.version("0.0.1").description("Bundestag scraper");
 program.parse(process.argv);
