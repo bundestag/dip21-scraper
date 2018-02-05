@@ -222,7 +222,7 @@ class Scraper {
     );
   }
 
-  async saveJson(link, index, page) {
+  async saveJson(link, page) {
     // let page = this.page;
 
     var processId = /\[ID:&nbsp;(.*?)\]/;

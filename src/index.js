@@ -7,6 +7,7 @@ const Scraper = require("./scraper");
 var program = require("commander");
 var inquirer = require("inquirer");
 var _progress = require("cli-progress");
+const eachLimit = require("async").eachLimit;
 
 program.version("0.0.1").description("Bundestag scraper");
 program.parse(process.argv);
@@ -19,7 +20,7 @@ function timeout(ms) {
 
 async function scrape() {
   await scraper.init();
-  const stack = await Promise.all(scraper.createBrowserStack(5));
+  const stack = await Promise.all(scraper.createBrowserStack(7));
   // console.log(stack);
   await scraper.start();
   await scraper.goToSearch();
@@ -50,59 +51,47 @@ async function scrape() {
     _progress.Presets.shades_classic
   );
   bar1.start(resultsInfo.entriesSum, 0);
-  while (
-    links.filter(({ scraped }) => !scraped).length > 0 ||
-    stack.find(b => b.used)
-  ) {
-    let freeBrowserIndex = stack.findIndex(b => !b.used);
-    if (stack[freeBrowserIndex]) {
-      let linkIndex = links.findIndex(({ scraped }) => !scraped);
-      try {
-        if (links[linkIndex]) {
-          links[linkIndex].scraped = true;
-          stack[freeBrowserIndex].used = true;
-          scraper
-            .saveJson(
-              links[linkIndex].url,
-              linkIndex,
-              stack[freeBrowserIndex].page
-            )
-            .then(() => {
-              //console.log("success");
-              stack[freeBrowserIndex].used = false;
-              bar1.update(
-                resultsInfo.entriesSum -
-                  links.filter(({ scraped }) => !scraped).length
-              );
+
+  let completedLinks = 0;
+
+  const analyseLink = async (link, browser) => {
+    await scraper.saveJson(link.url, browser.page).then(() => {
+      //console.log("success");
+      completedLinks += 1;
+      bar1.update(completedLinks);
+    });
+  };
+
+  const startAnalyse = async browserIndex => {
+    const linkIndex = links.findIndex(({ scraped }) => !scraped);
+    if (linkIndex !== -1) {
+      links[linkIndex].scraped = true;
+      await analyseLink(links[linkIndex], stack[browserIndex]).catch(
+        async err => {
+          stack[browserIndex].errorCount += 1;
+          links[linkIndex].scraped = false;
+          await scraper
+            .createNewBrowser(stack[browserIndex])
+            .then(newBrowser => {
+              stack[browserIndex] = newBrowser;
             })
-            .catch(err => {
-              links[linkIndex].scraped = false;
-              // console.log("################################");
-              stack[freeBrowserIndex].errorCount += 1;
-              console.log(err);
-              // console.log("errorCount: ", stack[freeBrowserIndex].errorCount);
-              if (stack[freeBrowserIndex].errorCount > 5) {
-                scraper
-                  .createNewBrowser(stack[freeBrowserIndex])
-                  .then(newBrowser => {
-                    stack[freeBrowserIndex] = newBrowser;
-                    console.log(stack.map(br => br.used));
-                  })
-                  .catch(err => console.log(err));
-              } else {
-                stack[freeBrowserIndex].used = false;
-              }
-            });
+            .catch(err => console.log(err));
         }
-      } catch (error) {
-        console.log(error);
-      }
+      );
+      await startAnalyse(browserIndex);
     }
-    await timeout(50);
-  }
-  stack.forEach(b => b.browser.close());
-  bar1.stop();
-  await scraper.finish();
+  };
+
+  const promises = stack.map(async (browser, browserIndex) => {
+    await startAnalyse(browserIndex);
+  });
+  await Promise.all(promises).then(() => {
+    stack.forEach(b => b.browser.close());
+    bar1.stop();
+    scraper.finish();
+  });
+
+  console.log("############### FINISH ###############");
 }
 
 try {

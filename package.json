@@ -6,6 +6,7 @@
   "author": "Manuel Ruck",
   "license": "MIT",
   "dependencies": {
+    "async": "^2.6.0",
     "cli-progress": "^1.7.0",
     "commander": "^2.13.0",
     "fs-extra": "^5.0.0",
