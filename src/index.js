@@ -70,12 +70,14 @@ async function scrape() {
         async err => {
           stack[browserIndex].errorCount += 1;
           links[linkIndex].scraped = false;
-          await scraper
-            .createNewBrowser(stack[browserIndex])
-            .then(newBrowser => {
-              stack[browserIndex] = newBrowser;
-            })
-            .catch(err => console.log(err));
+          if (stack[browserIndex].errorCount > 5) {
+            await scraper
+              .createNewBrowser(stack[browserIndex])
+              .then(newBrowser => {
+                stack[browserIndex] = newBrowser;
+              })
+              .catch(err => console.log(err));
+          }
         }
       );
       await startAnalyse(browserIndex);
