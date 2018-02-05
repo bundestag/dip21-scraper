@@ -12,6 +12,7 @@
     "fs-extra": "^5.0.0",
     "inquirer": "^5.0.1",
     "jsonfile": "^4.0.0",
+    "log": "^1.4.0",
     "node-gyp": "^3.6.2",
     "puppeteer": "^1.0.0",
     "x2js": "^3.1.1"

@@ -9,6 +9,10 @@ var inquirer = require("inquirer");
 var _progress = require("cli-progress");
 const eachLimit = require("async").eachLimit;
 
+var fs = require("fs"),
+  Log = require("log"),
+  log = new Log("debug", fs.createWriteStream("my.log"));
+
 program.version("0.0.1").description("Bundestag scraper");
 program.parse(process.argv);
 
@@ -46,11 +50,13 @@ async function scrape() {
   var bar1 = new _progress.Bar(
     {
       format:
-        "[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total}"
+        "[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total} | {errorCounter}"
     },
     _progress.Presets.shades_classic
   );
-  bar1.start(resultsInfo.entriesSum, 0);
+  bar1.start(resultsInfo.entriesSum, 0, {
+    errorCounter: stack.map(({ errorCount }) => errorCount)
+  });
 
   let completedLinks = 0;
 
@@ -58,7 +64,9 @@ async function scrape() {
     await scraper.saveJson(link.url, browser.page).then(() => {
       //console.log("success");
       completedLinks += 1;
-      bar1.update(completedLinks);
+      bar1.update(completedLinks, {
+        errorCounter: stack.map(({ errorCount }) => errorCount)
+      });
     });
   };
 
@@ -68,6 +76,7 @@ async function scrape() {
       links[linkIndex].scraped = true;
       await analyseLink(links[linkIndex], stack[browserIndex]).catch(
         async err => {
+          log.error(err);
           stack[browserIndex].errorCount += 1;
           links[linkIndex].scraped = false;
           if (stack[browserIndex].errorCount > 5) {
@@ -75,8 +84,11 @@ async function scrape() {
               .createNewBrowser(stack[browserIndex])
               .then(newBrowser => {
                 stack[browserIndex] = newBrowser;
+                bar1.update(completedLinks, {
+                  errorCounter: stack.map(({ errorCount }) => errorCount)
+                });
               })
-              .catch(err => console.log(err));
+              .catch(err => log.error(err));
           }
         }
       );
