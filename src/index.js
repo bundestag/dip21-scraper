@@ -8,6 +8,7 @@ var program = require("commander");
 var inquirer = require("inquirer");
 var _progress = require("cli-progress");
 const eachLimit = require("async").eachLimit;
+var colors = require("colors");
 
 var fs = require("fs"),
   Log = require("log"),
@@ -55,7 +56,9 @@ async function scrape() {
     _progress.Presets.shades_classic
   );
   bar1.start(resultsInfo.entriesSum, 0, {
-    errorCounter: stack.map(({ errorCount }) => errorCount)
+    errorCounter: stack.map(
+      ({ errorCount }) => (errorCount ? errorCount.red : `${errorCount}`.red)
+    )
   });
 
   let completedLinks = 0;
@@ -65,7 +68,10 @@ async function scrape() {
       //console.log("success");
       completedLinks += 1;
       bar1.update(completedLinks, {
-        errorCounter: stack.map(({ errorCount }) => errorCount)
+        errorCounter: stack.map(
+          ({ errorCount }) =>
+            errorCount ? errorCount.red : `${errorCount}`.red
+        )
       });
     });
   };
@@ -85,7 +91,10 @@ async function scrape() {
               .then(newBrowser => {
                 stack[browserIndex] = newBrowser;
                 bar1.update(completedLinks, {
-                  errorCounter: stack.map(({ errorCount }) => errorCount)
+                  errorCounter: stack.map(
+                    ({ errorCount }) =>
+                      errorCount ? errorCount.red : `${errorCount}`.red
+                  )
                 });
               })
               .catch(err => log.error(err));

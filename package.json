@@ -8,6 +8,7 @@
   "dependencies": {
     "async": "^2.6.0",
     "cli-progress": "^1.7.0",
+    "colors": "^1.1.2",
     "commander": "^2.13.0",
     "fs-extra": "^5.0.0",
     "inquirer": "^5.0.1",
