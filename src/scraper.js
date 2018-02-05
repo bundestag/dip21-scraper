@@ -104,7 +104,7 @@ class Scraper {
       };
     } catch (error) {
       // console.log("### new Browser failed", error);
-      this.createNewBrowser(browserObject);
+      return await this.createNewBrowser(browserObject);
     }
   }
 
@@ -227,7 +227,7 @@ class Scraper {
 
     var processId = /\[ID:&nbsp;(.*?)\]/;
     var xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
-    await page.goto(link, { timeout: 5000 });
+    await page.goto(link);
 
     let content = await page.evaluate(sel => {
       return document.querySelector(sel).innerHTML;
@@ -272,9 +272,7 @@ class Scraper {
   }
 
   async getProcessRunningData(vorgangId, page) {
-    await page.goto(`${URLS.processRunning}?vorgangId=${vorgangId}`, {
-      timeout: 5000
-    });
+    await page.goto(`${URLS.processRunning}?vorgangId=${vorgangId}`, {});
     var xmlRegex = /<VORGANGSABLAUF>(.|\n)*?<\/VORGANGSABLAUF>/;
     let html = await page.content();
     let xmlString = html.match(xmlRegex)[0];

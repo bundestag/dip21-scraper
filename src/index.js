@@ -19,7 +19,7 @@ function timeout(ms) {
 
 async function scrape() {
   await scraper.init();
-  const stack = await Promise.all(scraper.createBrowserStack(7));
+  const stack = await Promise.all(scraper.createBrowserStack(5));
   // console.log(stack);
   await scraper.start();
   await scraper.goToSearch();
@@ -54,19 +54,22 @@ async function scrape() {
     links.filter(({ scraped }) => !scraped).length > 0 ||
     stack.find(b => b.used)
   ) {
-    let linkIndex = links.findIndex(({ scraped }) => !scraped);
     let freeBrowserIndex = stack.findIndex(b => !b.used);
-    let freeBrowser = stack[freeBrowserIndex];
-    if (freeBrowser) {
+    if (stack[freeBrowserIndex]) {
+      let linkIndex = links.findIndex(({ scraped }) => !scraped);
       try {
         if (links[linkIndex]) {
           links[linkIndex].scraped = true;
-          freeBrowser.used = true;
+          stack[freeBrowserIndex].used = true;
           scraper
-            .saveJson(links[linkIndex].url, linkIndex, freeBrowser.page)
+            .saveJson(
+              links[linkIndex].url,
+              linkIndex,
+              stack[freeBrowserIndex].page
+            )
             .then(() => {
               //console.log("success");
-              freeBrowser.used = false;
+              stack[freeBrowserIndex].used = false;
               bar1.update(
                 resultsInfo.entriesSum -
                   links.filter(({ scraped }) => !scraped).length
@@ -75,19 +78,19 @@ async function scrape() {
             .catch(err => {
               links[linkIndex].scraped = false;
               // console.log("################################");
-              // console.log(err);
-              freeBrowser.errorCount += 1;
-              // console.log("errorCount: ", freeBrowser.errorCount);
-              if (freeBrowser.errorCount >= 3) {
+              stack[freeBrowserIndex].errorCount += 1;
+              console.log(err);
+              // console.log("errorCount: ", stack[freeBrowserIndex].errorCount);
+              if (stack[freeBrowserIndex].errorCount > 5) {
                 scraper
-                  .createNewBrowser(freeBrowser)
+                  .createNewBrowser(stack[freeBrowserIndex])
                   .then(newBrowser => {
                     stack[freeBrowserIndex] = newBrowser;
-                    // console.log(stack.map(br => br.used));
+                    console.log(stack.map(br => br.used));
                   })
                   .catch(err => console.log(err));
               } else {
-                freeBrowser.used = false;
+                stack[freeBrowserIndex].used = false;
               }
             });
         }
@@ -95,7 +98,7 @@ async function scrape() {
         console.log(error);
       }
     }
-    await timeout(30);
+    await timeout(50);
   }
   stack.forEach(b => b.browser.close());
   bar1.stop();
