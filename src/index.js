@@ -7,8 +7,8 @@ const Scraper = require("./scraper");
 var program = require("commander");
 var inquirer = require("inquirer");
 var _progress = require("cli-progress");
-const eachLimit = require("async").eachLimit;
 var colors = require("colors");
+const jsonfile = require("jsonfile");
 
 var fs = require("fs"),
   Log = require("log"),
@@ -80,8 +80,19 @@ async function scrape() {
     const linkIndex = links.findIndex(({ scraped }) => !scraped);
     if (linkIndex !== -1) {
       links[linkIndex].scraped = true;
-      await analyseLink(links[linkIndex], stack[browserIndex]).catch(
-        async err => {
+      await analyseLink(links[linkIndex], stack[browserIndex])
+        .then(() => {
+          jsonfile.writeFile(
+            `links-${period.value}-${operationType.values}.json`,
+            links,
+            {
+              spaces: 2,
+              EOL: "\r\n"
+            },
+            err => {}
+          );
+        })
+        .catch(async err => {
           log.error(err);
           stack[browserIndex].errorCount += 1;
           links[linkIndex].scraped = false;
@@ -99,8 +110,7 @@ async function scrape() {
               })
               .catch(err => log.error(err));
           }
-        }
-      );
+        });
       await startAnalyse(browserIndex);
     }
   };
