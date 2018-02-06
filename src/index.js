@@ -4,15 +4,11 @@
  * Module dependencies.
  */
 const Scraper = require("./scraper");
-var program = require("commander");
-var inquirer = require("inquirer");
-var _progress = require("cli-progress");
-var colors = require("colors");
+const program = require("commander");
+const inquirer = require("inquirer");
+const _progress = require("cli-progress");
 const jsonfile = require("jsonfile");
-
-var fs = require("fs"),
-  Log = require("log"),
-  log = new Log("debug", fs.createWriteStream(`log.log`));
+const fs = require("fs-extra");
 
 program
   .version("0.0.1")
@@ -31,19 +27,7 @@ program
 
 const scraper = new Scraper();
 
-function timeout(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function scrape() {
-  await scraper.init();
-  const stack = await Promise.all(scraper.createBrowserStack(7));
-  // console.log(stack);
-  await scraper.start();
-  await scraper.goToSearch();
-
-  //Select Period
-  const periods = await scraper.takePeriods();
+async function selectPeriod(periods) {
   var selectedPeriod = program.period;
   if (!selectedPeriod) {
     const period = await inquirer.prompt({
@@ -65,10 +49,10 @@ async function scrape() {
     selectedPeriod = "";
   }
   console.log(`Selected Period '${selectedPeriod}'`);
-  await scraper.selectPeriod(selectedPeriod);
+  return selectedPeriod;
+}
 
-  //Select operationTypes
-  const operationTypes = await scraper.takeOperationTypes();
+async function selectOperationTypes(operationTypes) {
   var selectedOperationTypes = [];
   if (!program.operationtypes) {
     const operationType = await inquirer.prompt({
@@ -96,95 +80,106 @@ async function scrape() {
       );
       process.exit(1);
     }
+    console.log(`Selected OperationTypes '${selectedOperationTypes_proto}'`);
   }
-  console.log(`Selected OperationTypes '${selectedOperationTypes}'`);
-  await scraper.selectOperationTypes(selectedOperationTypes);
+  return selectedOperationTypes;
+}
 
-  //Search
-  const resultsInfo = await scraper.search();
-  let links = await scraper.getEntriesFromSearch(resultsInfo);
-  console.log("Einträge downloaden");
-  var bar1 = new _progress.Bar(
-    {
-      format:
-        "[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total} | {errorCounter}"
-    },
-    _progress.Presets.shades_classic
-  );
-  bar1.start(resultsInfo.entriesSum, 0, {
-    errorCounter: stack.map(
-      ({ errorCount }) => (errorCount < 1 ? errorCount : `${errorCount}`.red)
-    )
-  });
-
-  let completedLinks = 0;
-
-  const analyseLink = async (link, browser) => {
-    await scraper.saveJson(link.url, browser.page).then(() => {
-      //console.log("success");
-      completedLinks += 1;
-      bar1.update(completedLinks, {
-        errorCounter: stack.map(
-          ({ errorCount }) =>
-            errorCount < 1 ? errorCount : `${errorCount}`.red
-        )
-      });
-    });
-  };
-
-  const startAnalyse = async browserIndex => {
-    const linkIndex = links.findIndex(({ scraped }) => !scraped);
-    if (linkIndex !== -1) {
-      links[linkIndex].scraped = true;
-      await analyseLink(links[linkIndex], stack[browserIndex])
-        .then(() => {
-          jsonfile.writeFile(
-            `links-${selectedPeriod}-${selectedOperationTypes}.json`,
-            links,
-            {
-              spaces: 2,
-              EOL: "\r\n"
-            },
-            err => {}
-          );
-        })
-        .catch(async err => {
-          log.error(err);
-          stack[browserIndex].errorCount += 1;
-          links[linkIndex].scraped = false;
-          if (stack[browserIndex].errorCount > 5) {
-            await scraper
-              .createNewBrowser(stack[browserIndex])
-              .then(newBrowser => {
-                stack[browserIndex] = newBrowser;
-                bar1.update(completedLinks, {
-                  errorCounter: stack.map(
-                    ({ errorCount }) =>
-                      errorCount < 1 ? errorCount : `${errorCount}`.red
-                  )
-                });
-              })
-              .catch(err => log.error(err));
-          }
-        });
-      await startAnalyse(browserIndex);
-    }
-  };
-
-  const promises = stack.map(async (browser, browserIndex) => {
-    await startAnalyse(browserIndex);
-  });
-  await Promise.all(promises).then(() => {
-    stack.forEach(b => b.browser.close());
-    bar1.stop();
-    scraper.finish();
-  });
-
+async function finished() {
   console.log("############### FINISH ###############");
 }
 
+var barLink = new _progress.Bar(
+  {
+    format:
+      "[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total}"
+  },
+  _progress.Presets.shades_classic
+);
+
+async function startLinkProgress(sum, current) {
+  console.log("Eintragslinks sammeln");
+
+  barLink.start(sum, current);
+}
+
+async function updateLinkProgress(current) {
+  barLink.update(current);
+}
+
+async function stopLinkProgress() {
+  barLink.stop();
+}
+
+var barData = new _progress.Bar(
+  {
+    format:
+      "[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total} | {errorCounter}"
+  },
+  _progress.Presets.shades_classic
+);
+
+async function startDataProgress(sum, errorCounter) {
+  console.log("Einträge downloaden");
+  barData.start(sum, 0, errorCounter);
+}
+
+async function updateDataProgress(current, errorCounter) {
+  barData.update(current, errorCounter);
+}
+
+async function stopDataProgress() {
+  barData.stop();
+}
+
+async function logLinks(links) {
+  jsonfile.writeFile(
+    `links-${program.period}-${program.operationtypes}.json`,
+    links,
+    {
+      spaces: 2,
+      EOL: "\r\n"
+    },
+    err => {}
+  );
+}
+
+async function logData(process, processData) {
+  const directory = `files/${processData.VORGANG.WAHLPERIODE}/${
+    processData.VORGANG.VORGANGSTYP
+  }`;
+  await fs.ensureDir(directory);
+  jsonfile.writeFile(
+    `${directory}/${process}.json`,
+    processData,
+    {
+      spaces: 2,
+      EOL: "\r\n"
+    },
+    err => {}
+  );
+}
+
+function doScrape(link) {
+  console.log(link);
+  return false;
+}
+
 try {
-  scrape();
+  scraper.scrape({
+    selectedPeriod: selectPeriod,
+    selectedOperationTypes: selectOperationTypes,
+    startLinkProgress: startLinkProgress,
+    updateLinkProgress: updateLinkProgress,
+    stopLinkProgress: stopLinkProgress,
+    startDataProgress: startDataProgress,
+    updateDataProgress: updateDataProgress,
+    stopDataProgress: stopDataProgress,
+    finished: finished,
+    logLinks: logLinks,
+    logData: logData,
+    doScrape: doScrape //todo -> call before analysing link, abort if false
+  });
 } catch (error) {
   console.error(error);
 }

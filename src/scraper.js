@@ -1,8 +1,5 @@
 const puppeteer = require("puppeteer");
 const X2JS = require("x2js");
-const jsonfile = require("jsonfile");
-var _progress = require("cli-progress");
-const fs = require("fs-extra");
 const Url = require("url");
 const Querystring = require("querystring");
 
@@ -16,6 +13,88 @@ const URLS = {
 };
 
 class Scraper {
+  async scrape(options) {
+    await this.init();
+    const stack = await Promise.all(this.createBrowserStack(7));
+    await this.start();
+    await this.goToSearch();
+
+    //Select Period
+    const periods = await this.takePeriods();
+    await this.selectPeriod(await options.selectedPeriod(periods));
+
+    //Select operationTypes
+    const operationTypes = await this.takeOperationTypes();
+    await this.selectOperationTypes(
+      await options.selectedOperationTypes(operationTypes)
+    );
+
+    //Search
+    const resultsInfo = await this.search();
+    let links = await this.getEntriesFromSearch(
+      options.startLinkProgress,
+      options.updateLinkProgress,
+      options.stopLinkProgress
+    );
+    await options.startDataProgress(resultsInfo.entriesSum, {
+      errorCounter: stack.map(
+        ({ errorCount }) => (errorCount < 1 ? errorCount : `${errorCount}`.red)
+      )
+    });
+
+    let completedLinks = 0;
+    const analyseLink = async (link, browser, logData) => {
+      await this.saveJson(link.url, browser.page, logData).then(() => {
+        completedLinks += 1;
+        options.updateDataProgress(completedLinks, {
+          errorCounter: stack.map(
+            ({ errorCount }) =>
+              errorCount < 1 ? errorCount : `${errorCount}`.red
+          )
+        });
+      });
+    };
+    const startAnalyse = async (browserIndex, logLinks, logData) => {
+      const linkIndex = links.findIndex(({ scraped }) => !scraped);
+      if (linkIndex !== -1) {
+        links[linkIndex].scraped = true;
+        await analyseLink(links[linkIndex], stack[browserIndex], logData)
+          .then(() => {
+            logLinks(links);
+          })
+          .catch(async err => {
+            console.log(err);
+            stack[browserIndex].errorCount += 1;
+            links[linkIndex].scraped = false;
+            if (stack[browserIndex].errorCount > 5) {
+              await this.createNewBrowser(stack[browserIndex])
+                .then(newBrowser => {
+                  stack[browserIndex] = newBrowser;
+                  options.updateDataProgress(completedLinks, {
+                    errorCounter: stack.map(
+                      ({ errorCount }) =>
+                        errorCount < 1 ? errorCount : `${errorCount}`.red
+                    )
+                  });
+                })
+                .catch(err => log.error(err));
+            }
+          });
+        await startAnalyse(browserIndex, options.logLinks, options.logData);
+      }
+    };
+
+    const promises = stack.map(async (browser, browserIndex) => {
+      await startAnalyse(browserIndex, options.logLinks, options.logData);
+    });
+    await Promise.all(promises).then(() => {
+      stack.forEach(b => b.browser.close());
+      options.stopDataProgress();
+      this.finish();
+    });
+    options.finished();
+  }
+
   async init() {
     this.browser = await puppeteer.launch();
     this.page = await this.browser.newPage();
@@ -171,29 +250,21 @@ class Scraper {
     };
   }
 
-  async getEntriesFromSearch() {
+  async getEntriesFromSearch(progressStart, progressUpdate, progressStop) {
     let links = [];
     const resultInfos = await this.getResultInfos();
-    console.log("Eintragslinks sammeln");
-    var bar1 = new _progress.Bar(
-      {
-        format:
-          "[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total}"
-      },
-      _progress.Presets.shades_classic
-    );
-    bar1.start(resultInfos.pageSum, resultInfos.pageCurrent);
+    await progressStart(resultInfos.pageSum, resultInfos.pageCurrent);
     for (let i = resultInfos.pageCurrent; i <= resultInfos.pageSum; i++) {
       let pageLinks = await this.getEntriesFromPage();
       links = links.concat(pageLinks);
       let curResultInfos = await this.getResultInfos();
-      bar1.update(curResultInfos.pageCurrent);
+      await progressUpdate(curResultInfos.pageCurrent);
       if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
         await this.clickWait(
           "#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input"
         );
       } else {
-        bar1.stop();
+        progressStop();
       }
     }
     return links;
@@ -222,9 +293,7 @@ class Scraper {
     );
   }
 
-  async saveJson(link, page) {
-    // let page = this.page;
-
+  async saveJson(link, page, logData) {
     var processId = /\[ID:&nbsp;(.*?)\]/;
     var xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
     await page.goto(link);
@@ -248,19 +317,7 @@ class Scraper {
       ...dataProcess,
       ...dataProcessRunning
     };
-    const directory = `files/${processData.VORGANG.WAHLPERIODE}/${
-      processData.VORGANG.VORGANGSTYP
-    }`;
-    await fs.ensureDir(directory);
-    jsonfile.writeFile(
-      `${directory}/${process}.json`,
-      processData,
-      {
-        spaces: 2,
-        EOL: "\r\n"
-      },
-      err => {}
-    );
+    logData(process, processData);
   }
 
   async getProcessData(link, page) {
