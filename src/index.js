@@ -61,6 +61,9 @@ async function scrape() {
     console.log(`'${selectedPeriod}' is not a valid option for period`);
     process.exit(1);
   }
+  if (selectedPeriod === "Alle") {
+    selectedPeriod = "";
+  }
   console.log(`Selected Period '${selectedPeriod}'`);
   await scraper.selectPeriod(selectedPeriod);
 
@@ -79,7 +82,10 @@ async function scrape() {
     const selectedOperationTypes_proto = program.operationtypes.split(",");
     for (var i = 0, iLen = selectedOperationTypes_proto.length; i < iLen; i++) {
       operationTypes.find(function(ot) {
-        if (selectedOperationTypes_proto[i] === "Alle" || ot.name.substring(0, 3) === selectedOperationTypes_proto[i]) {
+        if (
+          selectedOperationTypes_proto[i] === "Alle" ||
+          ot.name.substring(0, 3) === selectedOperationTypes_proto[i]
+        ) {
           selectedOperationTypes.push(ot.value);
         }
       });
@@ -133,7 +139,7 @@ async function scrape() {
       await analyseLink(links[linkIndex], stack[browserIndex])
         .then(() => {
           jsonfile.writeFile(
-            `links-${period.value}-${operationType.values}.json`,
+            `links-${selectedPeriod}-${selectedOperationTypes}.json`,
             links,
             {
               spaces: 2,
