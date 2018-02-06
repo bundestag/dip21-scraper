@@ -12,10 +12,22 @@ const jsonfile = require("jsonfile");
 
 var fs = require("fs"),
   Log = require("log"),
-  log = new Log("debug", fs.createWriteStream(`log-${Date()}.log`));
+  log = new Log("debug", fs.createWriteStream(`log.log`));
 
-program.version("0.0.1").description("Bundestag scraper");
-program.parse(process.argv);
+program
+  .version("0.0.1")
+  .description("Bundestag scraper")
+  .option(
+    "-p, --period [PeriodenNummer|Alle]",
+    "Select a specified period [null]",
+    null
+  )
+  .option(
+    "-t, --operationtypes <OperationTypeNummer|Alle>",
+    "Select specified OperationTypes [null]",
+    null
+  )
+  .parse(process.argv);
 
 const scraper = new Scraper();
 
@@ -29,22 +41,60 @@ async function scrape() {
   // console.log(stack);
   await scraper.start();
   await scraper.goToSearch();
+
+  //Select Period
   const periods = await scraper.takePeriods();
-  const period = await inquirer.prompt({
-    type: "list",
-    name: "value",
-    message: "Wähle eine Legislaturperiode",
-    choices: periods
-  });
-  await scraper.selectPeriod(period.value);
+  var selectedPeriod = program.period;
+  if (!selectedPeriod) {
+    const period = await inquirer.prompt({
+      type: "list",
+      name: "value",
+      message: "Wähle eine Legislaturperiode",
+      choices: periods
+    });
+    selectedPeriod = period.value;
+  } else if (
+    !periods.find(function(period) {
+      return period.name === selectedPeriod;
+    })
+  ) {
+    console.log(`'${selectedPeriod}' is not a valid option for period`);
+    process.exit(1);
+  }
+  console.log(`Selected Period '${selectedPeriod}'`);
+  await scraper.selectPeriod(selectedPeriod);
+
+  //Select operationTypes
   const operationTypes = await scraper.takeOperationTypes();
-  const operationType = await inquirer.prompt({
-    type: "checkbox",
-    name: "values",
-    message: "Wähle Vorgangstyp(en)",
-    choices: operationTypes
-  });
-  await scraper.selectOperationTypes(operationType.values);
+  var selectedOperationTypes = [];
+  if (!program.operationtypes) {
+    const operationType = await inquirer.prompt({
+      type: "checkbox",
+      name: "values",
+      message: "Wähle Vorgangstyp(en)",
+      choices: operationTypes
+    });
+    selectedOperationTypes = operationType.values;
+  } else {
+    const selectedOperationTypes_proto = program.operationtypes.split(",");
+    for (var i = 0, iLen = selectedOperationTypes_proto.length; i < iLen; i++) {
+      operationTypes.find(function(ot) {
+        if (selectedOperationTypes_proto[i] === "Alle" || ot.name.substring(0, 3) === selectedOperationTypes_proto[i]) {
+          selectedOperationTypes.push(ot.value);
+        }
+      });
+    }
+    if (selectedOperationTypes.length === -1) {
+      console.log(
+        `'${selectedOperationTypes_proto}' is not a valid option for OperationTypes`
+      );
+      process.exit(1);
+    }
+  }
+  console.log(`Selected OperationTypes '${selectedOperationTypes}'`);
+  await scraper.selectOperationTypes(selectedOperationTypes);
+
+  //Search
   const resultsInfo = await scraper.search();
   let links = await scraper.getEntriesFromSearch(resultsInfo);
   console.log("Einträge downloaden");
