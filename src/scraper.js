@@ -14,38 +14,50 @@ const URLS = {
 };
 
 class Scraper {
-  async scrape(options) {
+  async scrape({
+    stackSize,
+    selectedPeriod,
+    selectedOperationTypes,
+    startLinkProgress,
+    updateLinkProgress,
+    stopLinkProgress,
+    startDataProgress,
+    updateDataProgress,
+    logLinks,
+    logData,
+    stopDataProgress,
+    finished,
+    doScrape
+  }) {
     await this.init();
-    const stack = await Promise.all(this.createBrowserStack(options.stackSize));
+    const stack = await Promise.all(this.createBrowserStack(stackSize));
     await this.start();
     await this.goToSearch();
 
     //Select Period
     const periods = await this.takePeriods();
-    await this.selectPeriod(await options.selectedPeriod(periods));
+    await this.selectPeriod(await selectedPeriod(periods));
     //Select operationTypes
     const operationTypes = await this.takeOperationTypes();
     await this.selectOperationTypes(
-      await options.selectedOperationTypes(operationTypes)
+      await selectedOperationTypes(operationTypes)
     );
 
     //Search
     const resultsInfo = await this.search();
-    let links = await this.getEntriesFromSearch(
-      options.startLinkProgress,
-      options.updateLinkProgress,
-      options.stopLinkProgress
-    );
-    await options.startDataProgress(
-      resultsInfo.entriesSum,
-      this.getErrorCount(stack)
-    );
+    let links = await this.getEntriesFromSearch({
+      progressStart: startLinkProgress,
+      progressUpdate: updateLinkProgress,
+      progressStop: stopLinkProgress,
+      doScrape
+    });
+    await startDataProgress(links.length, this.getErrorCount(stack));
 
     let completedLinks = 0;
     const analyseLink = async (link, browser, logData) => {
       await this.saveJson(link.url, browser.page, logData).then(() => {
         completedLinks += 1;
-        options.updateDataProgress(completedLinks, this.getErrorCount(stack));
+        updateDataProgress(completedLinks, this.getErrorCount(stack));
       });
     };
     const startAnalyse = async (browserIndex, logLinks, logData) => {
@@ -64,25 +76,22 @@ class Scraper {
               await this.createNewBrowser(stack[browserIndex])
                 .then(newBrowser => {
                   stack[browserIndex] = newBrowser;
-                  options.updateDataProgress(
-                    completedLinks,
-                    this.getErrorCount(stack)
-                  );
+                  updateDataProgress(completedLinks, this.getErrorCount(stack));
                 })
                 .catch(err => log.error(err));
             }
           });
-        await startAnalyse(browserIndex, options.logLinks, options.logData);
+        await startAnalyse(browserIndex, logLinks, logData);
       }
     };
 
     const promises = stack.map(async (browser, browserIndex) => {
-      await startAnalyse(browserIndex, options.logLinks, options.logData);
+      await startAnalyse(browserIndex, logLinks, logData);
     });
     await Promise.all(promises).then(() => {
       stack.forEach(b => b.browser.close());
-      options.stopDataProgress();
-      this.finish(options.finished);
+      stopDataProgress();
+      this.finish(finished);
     });
   }
 
@@ -251,12 +260,17 @@ class Scraper {
     };
   }
 
-  async getEntriesFromSearch(progressStart, progressUpdate, progressStop) {
+  async getEntriesFromSearch({
+    progressStart,
+    progressUpdate,
+    progressStop,
+    doScrape
+  }) {
     let links = [];
     const resultInfos = await this.getResultInfos();
     await progressStart(resultInfos.pageSum, resultInfos.pageCurrent);
     for (let i = resultInfos.pageCurrent; i <= resultInfos.pageSum; i++) {
-      let pageLinks = await this.getEntriesFromPage();
+      let pageLinks = await this.getEntriesFromPage({ doScrape });
       links = links.concat(pageLinks);
       let curResultInfos = await this.getResultInfos();
       await progressUpdate(curResultInfos.pageCurrent);
@@ -271,11 +285,22 @@ class Scraper {
     return links;
   }
 
-  async getEntriesFromPage() {
-    return await this.page.$$eval(
-      "#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody a.linkIntern",
-      els => els.map(el => ({ url: el.href, scraped: false }))
+  async getEntriesFromPage({ doScrape }) {
+    const links = await this.page.$$eval(
+      "#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody > tr",
+      els =>
+        els.map(el => {
+          return {
+            id: el
+              .querySelector("a.linkIntern")
+              .href.match(/selId=(\d.*?)&/)[1],
+            url: el.querySelector("a.linkIntern").href,
+            date: el.querySelector("td:nth-child(4)").innerHTML,
+            scraped: false
+          };
+        })
     );
+    return links.filter(link => doScrape(link));
   }
 
   async selectFirstEntry() {

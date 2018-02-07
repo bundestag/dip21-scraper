@@ -69,9 +69,12 @@ async function selectOperationTypes(operationTypes) {
         const selection = operationTypes.find(
           ({ number }) => number === sNumber
         );
+        if (selection) {
           return selection.value;
+        }
       })
       .filter(v => v !== undefined);
+  }
   return selectedOperationTypes;
 }
 
@@ -150,25 +153,25 @@ async function logData(process, processData) {
   );
 }
 
-function doScrape(link) {
-  console.log(link);
-  return false;
+function doScrape({ id, url, date }) {
+  //console.log(id, url, date);
+  return Math.random() >= 0.5;
 }
 
 try {
   scraper.scrape({
     selectedPeriod: selectPeriod,
     selectedOperationTypes: selectOperationTypes,
-    startLinkProgress: startLinkProgress,
-    updateLinkProgress: updateLinkProgress,
-    stopLinkProgress: stopLinkProgress,
-    startDataProgress: startDataProgress,
-    updateDataProgress: updateDataProgress,
-    stopDataProgress: stopDataProgress,
-    finished: finished,
-    logLinks: logLinks,
-    logData: logData,
-    doScrape: doScrape, //todo -> call before analysing link, abort if false
+    startLinkProgress,
+    updateLinkProgress,
+    stopLinkProgress,
+    startDataProgress,
+    updateDataProgress,
+    stopDataProgress,
+    finished,
+    logLinks,
+    logData,
+    doScrape, //todo -> call before analysing link, abort if false
     stackSize: 7
   });
 } catch (error) {
