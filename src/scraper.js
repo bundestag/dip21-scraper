@@ -9,20 +9,20 @@ const URLS = {
   basisInfos:
     "https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail.do",
   processRunning:
-    "https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail_vp.do"
+    "https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail_vp.do",
+  start: "https://dipbt.bundestag.de/dip21.web/bt"
 };
 
 class Scraper {
   async scrape(options) {
     await this.init();
-    const stack = await Promise.all(this.createBrowserStack(7));
+    const stack = await Promise.all(this.createBrowserStack(options.stackSize));
     await this.start();
     await this.goToSearch();
 
     //Select Period
     const periods = await this.takePeriods();
     await this.selectPeriod(await options.selectedPeriod(periods));
-
     //Select operationTypes
     const operationTypes = await this.takeOperationTypes();
     await this.selectOperationTypes(
@@ -36,22 +36,16 @@ class Scraper {
       options.updateLinkProgress,
       options.stopLinkProgress
     );
-    await options.startDataProgress(resultsInfo.entriesSum, {
-      errorCounter: stack.map(
-        ({ errorCount }) => (errorCount < 1 ? errorCount : `${errorCount}`.red)
-      )
-    });
+    await options.startDataProgress(
+      resultsInfo.entriesSum,
+      this.getErrorCount(stack)
+    );
 
     let completedLinks = 0;
     const analyseLink = async (link, browser, logData) => {
       await this.saveJson(link.url, browser.page, logData).then(() => {
         completedLinks += 1;
-        options.updateDataProgress(completedLinks, {
-          errorCounter: stack.map(
-            ({ errorCount }) =>
-              errorCount < 1 ? errorCount : `${errorCount}`.red
-          )
-        });
+        options.updateDataProgress(completedLinks, this.getErrorCount(stack));
       });
     };
     const startAnalyse = async (browserIndex, logLinks, logData) => {
@@ -70,12 +64,10 @@ class Scraper {
               await this.createNewBrowser(stack[browserIndex])
                 .then(newBrowser => {
                   stack[browserIndex] = newBrowser;
-                  options.updateDataProgress(completedLinks, {
-                    errorCounter: stack.map(
-                      ({ errorCount }) =>
-                        errorCount < 1 ? errorCount : `${errorCount}`.red
-                    )
-                  });
+                  options.updateDataProgress(
+                    completedLinks,
+                    this.getErrorCount(stack)
+                  );
                 })
                 .catch(err => log.error(err));
             }
@@ -90,9 +82,8 @@ class Scraper {
     await Promise.all(promises).then(() => {
       stack.forEach(b => b.browser.close());
       options.stopDataProgress();
-      this.finish();
+      this.finish(options.finished);
     });
-    options.finished();
   }
 
   async init() {
@@ -134,7 +125,7 @@ class Scraper {
               break;
           }
         });
-        await page.goto("https://dipbt.bundestag.de/dip21.web/bt", {
+        await page.goto(URLS.start, {
           timeout: 60000
         });
       } catch (error) {
@@ -147,6 +138,14 @@ class Scraper {
         errorCount: 0
       };
     });
+  }
+
+  getErrorCount(stack) {
+    return {
+      errorCounter: stack.map(
+        ({ errorCount }) => (errorCount < 1 ? errorCount : `${errorCount}`.red)
+      )
+    };
   }
 
   async createNewBrowser(browserObject) {
@@ -171,7 +170,7 @@ class Scraper {
             break;
         }
       });
-      await page.goto("https://dipbt.bundestag.de/dip21.web/bt", {
+      await page.goto(URLS.start, {
         timeout: 10000
       });
       // console.log("new Browser created!");
@@ -188,12 +187,12 @@ class Scraper {
   }
 
   async start() {
-    await this.page.goto("https://dipbt.bundestag.de/dip21.web/bt");
+    await this.page.goto(URLS.start);
   }
 
   async goToSearch() {
     await this.clickWait(
-      "#navigationMenu > ul > li:nth-child(4) > ul > li:nth-child(1) > div > a"
+      "#navigationMenu > ul > li:nth-child(4) > ul > li:nth-child(2) > div > a"
     );
   }
 
@@ -348,13 +347,13 @@ class Scraper {
     }
   }
 
-  async screenshot(path, page = this.page) {
+  /*async screenshot(path, page = this.page) {
     let height = await this.page.evaluate(
       () => document.documentElement.offsetHeight
     );
     await page.setViewport({ width: 1000, height: height });
     await page.screenshot({ path });
-  }
+  }*/
 
   async clickWait(selector) {
     try {
@@ -370,8 +369,9 @@ class Scraper {
     }
   }
 
-  async finish() {
+  async finish(finished) {
     await this.browser.close();
+    finished();
   }
 }
 

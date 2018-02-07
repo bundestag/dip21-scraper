@@ -178,7 +178,8 @@ try {
     finished: finished,
     logLinks: logLinks,
     logData: logData,
-    doScrape: doScrape //todo -> call before analysing link, abort if false
+    doScrape: doScrape, //todo -> call before analysing link, abort if false
+    stackSize: 7
   });
 } catch (error) {
   console.error(error);
