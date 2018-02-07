@@ -42,14 +42,12 @@ class Scraper {
 
     // Search
     /* const resultsInfo = */ await this.search();
-    console.log('links1');
     const links = await this.getEntriesFromSearch({
       progressStart: startLinkProgress,
       progressUpdate: updateLinkProgress,
       progressStop: stopLinkProgress,
       doScrape,
     });
-    console.log('links2', links);
     await startDataProgress(links.length, Scraper.getErrorCount(stack));
 
     let completedLinks = 0;
