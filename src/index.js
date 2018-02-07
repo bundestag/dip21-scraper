@@ -53,7 +53,7 @@ async function selectPeriod(periods) {
 }
 
 async function selectOperationTypes(operationTypes) {
-  var selectedOperationTypes = [];
+  let selectedOperationTypes = [];
   if (!program.operationtypes) {
     const operationType = await inquirer.prompt({
       type: "checkbox",
@@ -64,24 +64,14 @@ async function selectOperationTypes(operationTypes) {
     selectedOperationTypes = operationType.values;
   } else {
     const selectedOperationTypes_proto = program.operationtypes.split(",");
-    for (var i = 0, iLen = selectedOperationTypes_proto.length; i < iLen; i++) {
-      operationTypes.find(function(ot) {
-        if (
-          selectedOperationTypes_proto[i] === "Alle" ||
-          ot.name.substring(0, 3) === selectedOperationTypes_proto[i]
-        ) {
-          selectedOperationTypes.push(ot.value);
-        }
-      });
-    }
-    if (selectedOperationTypes.length === -1) {
-      console.log(
-        `'${selectedOperationTypes_proto}' is not a valid option for OperationTypes`
-      );
-      process.exit(1);
-    }
-    console.log(`Selected OperationTypes '${selectedOperationTypes_proto}'`);
-  }
+    selectedOperationTypes = selectedOperationTypes_proto
+      .map(sNumber => {
+        const selection = operationTypes.find(
+          ({ number }) => number === sNumber
+        );
+          return selection.value;
+      })
+      .filter(v => v !== undefined);
   return selectedOperationTypes;
 }
 

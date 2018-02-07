@@ -218,9 +218,11 @@ class Scraper {
     const selectField = await this.page.evaluate(sel => {
       return document.querySelector(sel).outerHTML;
     }, "#includeVorgangstyp");
-    const values = x2j
-      .xml2js(selectField)
-      .select.option.map(o => ({ value: o._value, name: o.__text }));
+    const values = x2j.xml2js(selectField).select.option.map(o => ({
+      value: o._value,
+      name: o.__text,
+      number: o.__text.match(/\d{3}/) ? o.__text.match(/\d{3}/)[0] : "all"
+    }));
     return values;
   }
 
