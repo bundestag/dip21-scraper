@@ -195,7 +195,11 @@ class Scraper {
   }
 
   async goToSearch() {
-    await this.clickWait('#navigationMenu > ul > li:nth-child(4) > ul > li:nth-child(2) > div > a');
+    const cookies = await this.page.cookies();
+    const jssessionCookie = cookies.filter(c => c.name === 'JSESSIONID');
+    await this.page.goto(`https://dipbt.bundestag.de/dip21.web/searchProcedures.do;jsessionid=${
+      jssessionCookie.value
+    }`);
   }
 
   async takePeriods() {
