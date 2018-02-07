@@ -14,6 +14,7 @@ matrix:
         -   if: branch =~ ^master OR branch =~ /^pr\..*/
             os: linux
             language: node_js
+            sudo: required
             addons:
                 chrome: stable
             node_js:
