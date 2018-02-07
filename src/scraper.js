@@ -1,8 +1,5 @@
 const puppeteer = require("puppeteer");
 const X2JS = require("x2js");
-const jsonfile = require("jsonfile");
-var _progress = require("cli-progress");
-const fs = require("fs-extra");
 const Url = require("url");
 const Querystring = require("querystring");
 
@@ -12,10 +9,92 @@ const URLS = {
   basisInfos:
     "https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail.do",
   processRunning:
-    "https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail_vp.do"
+    "https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail_vp.do",
+  start: "https://dipbt.bundestag.de/dip21.web/bt"
 };
 
 class Scraper {
+  async scrape({
+    stackSize,
+    selectedPeriod,
+    selectedOperationTypes,
+    startLinkProgress,
+    updateLinkProgress,
+    stopLinkProgress,
+    startDataProgress,
+    updateDataProgress,
+    logLinks,
+    logData,
+    stopDataProgress,
+    finished,
+    doScrape
+  }) {
+    await this.init();
+    const stack = await Promise.all(this.createBrowserStack(stackSize));
+    await this.start();
+    await this.goToSearch();
+
+    //Select Period
+    const periods = await this.takePeriods();
+    await this.selectPeriod(await selectedPeriod(periods));
+    //Select operationTypes
+    const operationTypes = await this.takeOperationTypes();
+    await this.selectOperationTypes(
+      await selectedOperationTypes(operationTypes)
+    );
+
+    //Search
+    const resultsInfo = await this.search();
+    let links = await this.getEntriesFromSearch({
+      progressStart: startLinkProgress,
+      progressUpdate: updateLinkProgress,
+      progressStop: stopLinkProgress,
+      doScrape
+    });
+    await startDataProgress(links.length, this.getErrorCount(stack));
+
+    let completedLinks = 0;
+    const analyseLink = async (link, browser, logData) => {
+      await this.saveJson(link.url, browser.page, logData).then(() => {
+        completedLinks += 1;
+        updateDataProgress(completedLinks, this.getErrorCount(stack));
+      });
+    };
+    const startAnalyse = async (browserIndex, logLinks, logData) => {
+      const linkIndex = links.findIndex(({ scraped }) => !scraped);
+      if (linkIndex !== -1) {
+        links[linkIndex].scraped = true;
+        await analyseLink(links[linkIndex], stack[browserIndex], logData)
+          .then(() => {
+            logLinks(links);
+          })
+          .catch(async err => {
+            console.log(err);
+            stack[browserIndex].errorCount += 1;
+            links[linkIndex].scraped = false;
+            if (stack[browserIndex].errorCount > 5) {
+              await this.createNewBrowser(stack[browserIndex])
+                .then(newBrowser => {
+                  stack[browserIndex] = newBrowser;
+                  updateDataProgress(completedLinks, this.getErrorCount(stack));
+                })
+                .catch(err => log.error(err));
+            }
+          });
+        await startAnalyse(browserIndex, logLinks, logData);
+      }
+    };
+
+    const promises = stack.map(async (browser, browserIndex) => {
+      await startAnalyse(browserIndex, logLinks, logData);
+    });
+    await Promise.all(promises).then(() => {
+      stack.forEach(b => b.browser.close());
+      stopDataProgress();
+      this.finish(finished);
+    });
+  }
+
   async init() {
     this.browser = await puppeteer.launch();
     this.page = await this.browser.newPage();
@@ -55,7 +134,7 @@ class Scraper {
               break;
           }
         });
-        await page.goto("https://dipbt.bundestag.de/dip21.web/bt", {
+        await page.goto(URLS.start, {
           timeout: 60000
         });
       } catch (error) {
@@ -68,6 +147,14 @@ class Scraper {
         errorCount: 0
       };
     });
+  }
+
+  getErrorCount(stack) {
+    return {
+      errorCounter: stack.map(
+        ({ errorCount }) => (errorCount < 1 ? errorCount : `${errorCount}`.red)
+      )
+    };
   }
 
   async createNewBrowser(browserObject) {
@@ -92,7 +179,7 @@ class Scraper {
             break;
         }
       });
-      await page.goto("https://dipbt.bundestag.de/dip21.web/bt", {
+      await page.goto(URLS.start, {
         timeout: 10000
       });
       // console.log("new Browser created!");
@@ -109,12 +196,12 @@ class Scraper {
   }
 
   async start() {
-    await this.page.goto("https://dipbt.bundestag.de/dip21.web/bt");
+    await this.page.goto(URLS.start);
   }
 
   async goToSearch() {
     await this.clickWait(
-      "#navigationMenu > ul > li:nth-child(4) > ul > li:nth-child(1) > div > a"
+      "#navigationMenu > ul > li:nth-child(4) > ul > li:nth-child(2) > div > a"
     );
   }
 
@@ -140,9 +227,11 @@ class Scraper {
     const selectField = await this.page.evaluate(sel => {
       return document.querySelector(sel).outerHTML;
     }, "#includeVorgangstyp");
-    const values = x2j
-      .xml2js(selectField)
-      .select.option.map(o => ({ value: o._value, name: o.__text }));
+    const values = x2j.xml2js(selectField).select.option.map(o => ({
+      value: o._value,
+      name: o.__text,
+      number: o.__text.match(/\d{3}/) ? o.__text.match(/\d{3}/)[0] : "all"
+    }));
     return values;
   }
 
@@ -171,39 +260,47 @@ class Scraper {
     };
   }
 
-  async getEntriesFromSearch() {
+  async getEntriesFromSearch({
+    progressStart,
+    progressUpdate,
+    progressStop,
+    doScrape
+  }) {
     let links = [];
     const resultInfos = await this.getResultInfos();
-    console.log("Eintragslinks sammeln");
-    var bar1 = new _progress.Bar(
-      {
-        format:
-          "[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total}"
-      },
-      _progress.Presets.shades_classic
-    );
-    bar1.start(resultInfos.pageSum, resultInfos.pageCurrent);
+    await progressStart(resultInfos.pageSum, resultInfos.pageCurrent);
     for (let i = resultInfos.pageCurrent; i <= resultInfos.pageSum; i++) {
-      let pageLinks = await this.getEntriesFromPage();
+      let pageLinks = await this.getEntriesFromPage({ doScrape });
       links = links.concat(pageLinks);
       let curResultInfos = await this.getResultInfos();
-      bar1.update(curResultInfos.pageCurrent);
+      await progressUpdate(curResultInfos.pageCurrent);
       if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
         await this.clickWait(
           "#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input"
         );
       } else {
-        bar1.stop();
+        progressStop();
       }
     }
     return links;
   }
 
-  async getEntriesFromPage() {
-    return await this.page.$$eval(
-      "#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody a.linkIntern",
-      els => els.map(el => ({ url: el.href, scraped: false }))
+  async getEntriesFromPage({ doScrape }) {
+    const links = await this.page.$$eval(
+      "#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody > tr",
+      els =>
+        els.map(el => {
+          return {
+            id: el
+              .querySelector("a.linkIntern")
+              .href.match(/selId=(\d.*?)&/)[1],
+            url: el.querySelector("a.linkIntern").href,
+            date: el.querySelector("td:nth-child(4)").innerHTML,
+            scraped: false
+          };
+        })
     );
+    return links.filter(link => doScrape(link));
   }
 
   async selectFirstEntry() {
@@ -222,9 +319,7 @@ class Scraper {
     );
   }
 
-  async saveJson(link, page) {
-    // let page = this.page;
-
+  async saveJson(link, page, logData) {
     var processId = /\[ID:&nbsp;(.*?)\]/;
     var xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
     await page.goto(link);
@@ -248,19 +343,7 @@ class Scraper {
       ...dataProcess,
       ...dataProcessRunning
     };
-    const directory = `files/${processData.VORGANG.WAHLPERIODE}/${
-      processData.VORGANG.VORGANGSTYP
-    }`;
-    await fs.ensureDir(directory);
-    jsonfile.writeFile(
-      `${directory}/${process}.json`,
-      processData,
-      {
-        spaces: 2,
-        EOL: "\r\n"
-      },
-      err => {}
-    );
+    logData(process, processData);
   }
 
   async getProcessData(link, page) {
@@ -291,13 +374,13 @@ class Scraper {
     }
   }
 
-  async screenshot(path, page = this.page) {
+  /*async screenshot(path, page = this.page) {
     let height = await this.page.evaluate(
       () => document.documentElement.offsetHeight
     );
     await page.setViewport({ width: 1000, height: height });
     await page.screenshot({ path });
-  }
+  }*/
 
   async clickWait(selector) {
     try {
@@ -313,8 +396,9 @@ class Scraper {
     }
   }
 
-  async finish() {
+  async finish(finished) {
     await this.browser.close();
+    finished();
   }
 }
 
