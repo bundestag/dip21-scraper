@@ -262,7 +262,11 @@ class Scraper {
     let links = [];
     const resultInfos = await this.getResultInfos();
     await progressStart(resultInfos.pageSum, resultInfos.pageCurrent);
-    for (let i = resultInfos.pageCurrent; i <= resultInfos.pageSum; i += 1) {
+    for (
+      let i = parseInt(resultInfos.pageCurrent, 10);
+      i <= parseInt(resultInfos.pageSum, 10);
+      i += 1
+    ) {
       const pageLinks = await this.getEntriesFromPage({ doScrape });
       links = links.concat(pageLinks);
       const curResultInfos = await this.getResultInfos();
