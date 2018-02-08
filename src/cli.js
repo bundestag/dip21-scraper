@@ -1,8 +1,5 @@
 #!/usr/bin/env node
 
-/**
- * Module dependencies.
- */
 const Scraper = require('./scraper');
 const program = require('commander');
 const inquirer = require('inquirer');
@@ -22,8 +19,22 @@ program
   .parse(process.argv);
 
 const scraper = new Scraper();
+const barLink = new Progress.Bar(
+  {
+    format:
+      '[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total}',
+  },
+  Progress.Presets.shades_classic,
+);
+const barData = new Progress.Bar(
+  {
+    format:
+      '[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total} | {errorCounter}',
+  },
+  Progress.Presets.shades_classic,
+);
 
-async function selectPeriod(periods) {
+const selectPeriod = async (periods) => {
   let selectedPeriod = program.period;
   if (!selectedPeriod) {
     const period = await inquirer.prompt({
@@ -42,9 +53,9 @@ async function selectPeriod(periods) {
   }
   console.log(`Selected Period '${selectedPeriod}'`);
   return selectedPeriod;
-}
+};
 
-async function selectOperationTypes(operationTypes) {
+const selectOperationTypes = async (operationTypes) => {
   let selectedOperationTypes = [];
   if (!program.operationtypes) {
     const operationType = await inquirer.prompt({
@@ -67,56 +78,44 @@ async function selectOperationTypes(operationTypes) {
       .filter(v => v !== undefined);
   }
   return selectedOperationTypes;
-}
+};
 
-async function finished() {
+const logFinished = async () => {
   console.log('############### FINISH ###############');
-}
+};
 
-const barLink = new Progress.Bar(
-  {
-    format:
-      '[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total}',
-  },
-  Progress.Presets.shades_classic,
-);
-
-async function startLinkProgress(sum, current) {
+const logStartLinkProgress = async (sum, current) => {
   console.log('Eintragslinks sammeln');
 
   barLink.start(sum, current);
-}
+};
 
-async function updateLinkProgress(current) {
+const logUpdateLinkProgress = async (current) => {
   barLink.update(current);
-}
+};
 
-async function stopLinkProgress() {
+const logStopLinkProgress = async () => {
   barLink.stop();
-}
+};
 
-const barData = new Progress.Bar(
-  {
-    format:
-      '[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total} | {errorCounter}',
-  },
-  Progress.Presets.shades_classic,
-);
-
-async function startDataProgress(sum, errorCounter) {
+const logStartDataProgress = async (sum, errorCounter) => {
   console.log('Einträge downloaden');
   barData.start(sum, 0, errorCounter);
-}
+};
 
-async function updateDataProgress(current, errorCounter) {
+const logUpdateDataProgress = async (current, errorCounter) => {
   barData.update(current, errorCounter);
-}
+};
 
-async function stopDataProgress() {
+const logStopDataProgress = async () => {
   barData.stop();
-}
+};
 
-async function logLinks(links) {
+const logError = (error) => {
+  console.log(error);
+};
+
+const outScraperLinks = async (links) => {
   jsonfile.writeFile(
     `links-${program.period}-${program.operationtypes}.json`,
     links,
@@ -126,9 +125,9 @@ async function logLinks(links) {
     },
     (/* err */) => {},
   );
-}
+};
 
-async function logData(process, processData) {
+const outScraperData = async (process, processData) => {
   const directory = `files/${processData.VORGANG.WAHLPERIODE}/${processData.VORGANG.VORGANGSTYP}`;
   await fs.ensureDir(directory);
   jsonfile.writeFile(
@@ -140,29 +139,26 @@ async function logData(process, processData) {
     },
     (/* err */) => {},
   );
-}
+};
 
-function doScrape(/* { id, url, date } */) {
-  // console.log(id, url, date);
-  // return Math.random() >= 0.5;
-  return true;
-}
+const doScrape = () => true;
 
 try {
   scraper.scrape({
-    selectedPeriod: selectPeriod,
-    selectedOperationTypes: selectOperationTypes,
-    startLinkProgress,
-    updateLinkProgress,
-    stopLinkProgress,
-    startDataProgress,
-    updateDataProgress,
-    stopDataProgress,
-    finished,
-    logLinks,
-    logData,
-    doScrape, // todo -> call before analysing link, abort if false
-    stackSize: 7,
+    selectPeriod,
+    selectOperationTypes,
+    logStartLinkProgress,
+    logUpdateLinkProgress,
+    logStopLinkProgress,
+    logStartDataProgress,
+    logUpdateDataProgress,
+    logStopDataProgress,
+    logFinished,
+    logError,
+    outScraperLinks,
+    outScraperData,
+    doScrape,
+    browserStackSize: () => 7,
   });
 } catch (error) {
   console.error(error);
