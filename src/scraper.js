@@ -14,81 +14,83 @@ const URLS = {
 
 class Scraper {
   async scrape({
-    stackSize,
-    selectedPeriod,
-    selectedOperationTypes,
-    startLinkProgress,
-    updateLinkProgress,
-    stopLinkProgress,
-    startDataProgress,
-    updateDataProgress,
-    logLinks,
-    logData,
-    stopDataProgress,
-    finished,
-    doScrape,
+    selectPeriod = () => null,
+    selectOperationTypes = () => null,
+    logStartLinkProgress = () => {},
+    logUpdateLinkProgress = () => {},
+    logStopLinkProgress = () => {},
+    logStartDataProgress = () => {},
+    logUpdateDataProgress = () => {},
+    logStopDataProgress = () => {},
+    logFinished = () => {},
+    logError = () => {},
+    outScraperLinks = () => {},
+    outScraperData = () => {},
+    doScrape = () => true,
+    browserStackSize = () => 1,
   }) {
     await this.init();
-    const stack = await Promise.all(Scraper.createBrowserStack(stackSize));
+    const stack = await Promise.all(Scraper.createBrowserStack(browserStackSize()));
     await this.start();
     await this.goToSearch();
 
     // Select Period
     const periods = await this.takePeriods();
-    await this.selectPeriod(await selectedPeriod(periods));
+    await this.selectPeriod(await selectPeriod(periods));
     // Select operationTypes
     const operationTypes = await this.takeOperationTypes();
-    await this.selectOperationTypes(await selectedOperationTypes(operationTypes));
+    await this.selectOperationTypes(await selectOperationTypes(operationTypes));
 
     // Search
-    /* const resultsInfo = */ await this.search();
+    await this.search(logError);
     const links = await this.getEntriesFromSearch({
-      progressStart: startLinkProgress,
-      progressUpdate: updateLinkProgress,
-      progressStop: stopLinkProgress,
+      progressStart: logStartLinkProgress,
+      progressUpdate: logUpdateLinkProgress,
+      progressStop: logStopLinkProgress,
+      logError,
       doScrape,
     });
-    await startDataProgress(links.length, Scraper.getErrorCount(stack));
+    await logStartDataProgress(links.length, Scraper.getErrorCount(stack));
 
     let completedLinks = 0;
-    const analyseLink = async (link, browser /* , logData */) => {
-      await Scraper.saveJson(link.url, browser.page, logData).then(() => {
+    const analyseLink = async (link, browser) => {
+      await Scraper.saveJson(link.url, browser.page, outScraperData).then(() => {
         completedLinks += 1;
-        updateDataProgress(completedLinks, Scraper.getErrorCount(stack));
+        logUpdateDataProgress(completedLinks, Scraper.getErrorCount(stack));
       });
     };
-    const startAnalyse = async (browserIndex /* , logLinks, logData */) => {
+    const startAnalyse = async (browserIndex) => {
       const linkIndex = links.findIndex(({ scraped }) => !scraped);
       if (linkIndex !== -1) {
         links[linkIndex].scraped = true;
-        await analyseLink(links[linkIndex], stack[browserIndex], logData)
+        await analyseLink(links[linkIndex], stack[browserIndex], outScraperData)
           .then(() => {
-            logLinks(links);
+            outScraperLinks(links);
           })
           .catch(async (err) => {
-            console.log(err);
+            logError(err);
             stack[browserIndex].errorCount += 1;
             links[linkIndex].scraped = false;
             if (stack[browserIndex].errorCount > 5) {
               await this.createNewBrowser(stack[browserIndex])
                 .then((newBrowser) => {
                   stack[browserIndex] = newBrowser;
-                  updateDataProgress(completedLinks, Scraper.getErrorCount(stack));
+                  logUpdateDataProgress(completedLinks, Scraper.getErrorCount(stack));
                 })
-                .catch(err2 => console.log(err2));
+                .catch(err2 => logError(err2));
             }
           });
-        await startAnalyse(browserIndex, logLinks, logData);
+        await startAnalyse(browserIndex, outScraperLinks, outScraperData);
       }
     };
 
     const promises = stack.map(async (browser, browserIndex) => {
-      await startAnalyse(browserIndex, logLinks, logData);
+      await startAnalyse(browserIndex, outScraperLinks, outScraperData);
     });
     await Promise.all(promises).then(() => {
       stack.forEach(b => b.browser.close());
-      stopDataProgress();
-      this.finish(finished);
+      logStopDataProgress();
+      this.finish(logFinished);
     });
   }
 
@@ -238,8 +240,8 @@ class Scraper {
     await this.page.select('select#includeVorgangstyp', ...operationTypes);
   }
 
-  async search() {
-    await this.clickWait('input#btnSuche');
+  async search(logError) {
+    await this.clickWait('input#btnSuche', logError);
     return this.getResultInfos();
   }
 
@@ -261,7 +263,7 @@ class Scraper {
   }
 
   async getEntriesFromSearch({
-    progressStart, progressUpdate, progressStop, doScrape,
+    progressStart, progressUpdate, progressStop, doScrape, logError,
   }) {
     let links = [];
     const resultInfos = await this.getResultInfos();
@@ -276,7 +278,10 @@ class Scraper {
       const curResultInfos = await this.getResultInfos();
       await progressUpdate(curResultInfos.pageCurrent);
       if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
-        await this.clickWait('#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input');
+        await this.clickWait(
+          '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input',
+          logError,
+        );
       } else {
         progressStop();
       }
@@ -296,22 +301,6 @@ class Scraper {
         })),
     );
     return links.filter(link => doScrape(link));
-  }
-
-  async selectFirstEntry() {
-    try {
-      const href = await this.page.$eval(
-        '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody > tr:nth-child(1) > td:nth-child(3) > a',
-        el => el.href,
-      );
-      await this.page.goto(href, { waitUntil: 'domcontentloaded' });
-    } catch (error) {
-      console.log(error);
-    }
-  }
-
-  async goToNextEntry() {
-    await this.clickWait('#inhaltsbereich > div.inhalt > div.contentBox > fieldset > fieldset > div > fieldset > div > div.navigationListeNachRechts > input');
   }
 
   static async saveJson(link, page, logData) {
@@ -359,23 +348,7 @@ class Scraper {
     return x2j.xml2js(xmlString);
   }
 
-  async getCoAdvisedOperationsData(vorgangId /* , page */) {
-    // #nocss1 > fieldset > div > ul
-    const tabLength = await this.page.evaluate(() => document.querySelectorAll('#nocss1 > fieldset > div > ul a').length);
-    if (tabLength > 1) {
-      console.log(`#+#+#+#+#+#+#+#+#+#+#+#+#+# vorgangId: ${vorgangId}`);
-    }
-  }
-
-  /* async screenshot(path, page = this.page) {
-    let height = await this.page.evaluate(
-      () => document.documentElement.offsetHeight
-    );
-    await page.setViewport({ width: 1000, height: height });
-    await page.screenshot({ path });
-  } */
-
-  async clickWait(selector) {
+  async clickWait(selector, logError) {
     try {
       return await Promise.all([
         this.page.click(selector),
@@ -385,7 +358,7 @@ class Scraper {
         this.page.waitForSelector('#footer'),
       ]);
     } catch (error) {
-      console.log('TIMEOUT');
+      logError(error);
       return null;
     }
   }
