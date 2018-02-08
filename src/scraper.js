@@ -29,26 +29,27 @@ class Scraper {
     doScrape = () => true,
     browserStackSize = () => 1,
   }) {
-    await this.init();
+    // Error on browserStackSize <= 0
     const stack = await Promise.all(Scraper.createBrowserStack(browserStackSize()));
-    await this.start();
-    await this.goToSearch();
+    await Scraper.start(stack[0]);
+    await Scraper.goToSearch(stack[0]);
 
     // Select Period
-    const periods = await this.takePeriods();
-    await this.selectPeriod(await selectPeriod(periods));
+    const periods = await Scraper.takePeriods(stack[0]);
+    await Scraper.selectPeriod(stack[0], await selectPeriod(periods));
     // Select operationTypes
-    const operationTypes = await this.takeOperationTypes();
-    await this.selectOperationTypes(await selectOperationTypes(operationTypes));
+    const operationTypes = await Scraper.takeOperationTypes(stack[0]);
+    await Scraper.selectOperationTypes(stack[0], await selectOperationTypes(operationTypes));
 
     // Search
-    await this.search(logError);
-    const links = await this.getEntriesFromSearch({
-      progressStart: logStartLinkProgress,
-      progressUpdate: logUpdateLinkProgress,
-      progressStop: logStopLinkProgress,
+    await Scraper.search(stack[0], logError);
+    const links = await Scraper.getEntriesFromSearch({
+      logStartLinkProgress,
+      logUpdateLinkProgress,
+      logStopLinkProgress,
       logError,
       doScrape,
+      browser: stack[0],
     });
     await logStartDataProgress(links.length, Scraper.getErrorCount(stack));
 
@@ -90,62 +91,12 @@ class Scraper {
     await Promise.all(promises).then(() => {
       stack.forEach(b => b.browser.close());
       logStopDataProgress();
-      this.finish(logFinished);
-    });
-  }
-
-  async init() {
-    this.browser = await puppeteer.launch();
-    this.page = await this.browser.newPage();
-
-    await this.page.setRequestInterception(true);
-    this.page.on('request', (request) => {
-      switch (request.resourceType()) {
-        case 'image':
-        case 'script':
-        case 'stylesheet':
-          request.abort();
-          break;
-
-        default:
-          request.continue();
-          break;
-      }
+      logFinished();
     });
   }
 
   static createBrowserStack(number) {
-    return [...Array(number)].map(async () => {
-      const browser = await puppeteer.launch();
-      const page = await browser.newPage();
-      try {
-        await page.setRequestInterception(true);
-        page.on('request', (request) => {
-          switch (request.resourceType()) {
-            case 'image':
-            case 'script':
-            case 'stylesheet':
-              request.abort();
-              break;
-
-            default:
-              request.continue();
-              break;
-          }
-        });
-        await page.goto(URLS.start, {
-          timeout: 60000,
-        });
-      } catch (error) {
-        return new Promise(resolve => resolve());
-      }
-      return {
-        browser,
-        page,
-        used: false,
-        errorCount: 0,
-      };
-    });
+    return [...Array(number)].map(Scraper.createNewBrowser);
   }
 
   static getErrorCount(stack) {
@@ -154,7 +105,7 @@ class Scraper {
     };
   }
 
-  async createNewBrowser(browserObject) {
+  static async createNewBrowser(browserObject = {}) {
     // console.log('### create new Browser');
     if (browserObject.browser) {
       await browserObject.browser.close();
@@ -188,25 +139,25 @@ class Scraper {
       };
     } catch (error) {
       // console.log('### new Browser failed', error);
-      return this.createNewBrowser(browserObject);
+      return Scraper.createNewBrowser(browserObject);
     }
   }
 
-  async start() {
-    await this.page.goto(URLS.start);
+  static async start(browser) {
+    await browser.page.goto(URLS.start);
   }
 
-  async goToSearch() {
-    const cookies = await this.page.cookies();
+  static async goToSearch(browser) {
+    const cookies = await browser.page.cookies();
     const jssessionCookie = cookies.filter(c => c.name === 'JSESSIONID');
-    await this.page.goto(`https://dipbt.bundestag.de/dip21.web/searchProcedures.do;jsessionid=${
+    await browser.page.goto(`https://dipbt.bundestag.de/dip21.web/searchProcedures.do;jsessionid=${
       jssessionCookie.value
     }`);
   }
 
-  async takePeriods() {
-    await this.page.waitForSelector('input#btnSuche', { timeout: 5000 });
-    const selectField = await this.page.evaluate(
+  static async takePeriods(browser) {
+    await browser.page.waitForSelector('input#btnSuche', { timeout: 5000 });
+    const selectField = await browser.page.evaluate(
       sel => document.querySelector(sel).outerHTML,
       '#wahlperiode',
     );
@@ -216,15 +167,15 @@ class Scraper {
     return values;
   }
 
-  async selectPeriod(period) {
+  static async selectPeriod(browser, period) {
     await Promise.all([
-      this.page.waitForNavigation({ waitUntil: ['domcontentloaded'] }),
-      this.page.select('select#wahlperiode', period),
+      browser.page.waitForNavigation({ waitUntil: ['domcontentloaded'] }),
+      browser.page.select('select#wahlperiode', period),
     ]);
   }
 
-  async takeOperationTypes() {
-    const selectField = await this.page.evaluate(
+  static async takeOperationTypes(browser) {
+    const selectField = await browser.page.evaluate(
       sel => document.querySelector(sel).outerHTML,
       '#includeVorgangstyp',
     );
@@ -236,19 +187,19 @@ class Scraper {
     return values;
   }
 
-  async selectOperationTypes(operationTypes) {
-    await this.page.select('select#includeVorgangstyp', ...operationTypes);
+  static async selectOperationTypes(browser, operationTypes) {
+    await browser.page.select('select#includeVorgangstyp', ...operationTypes);
   }
 
-  async search(logError) {
-    await this.clickWait('input#btnSuche', logError);
-    return this.getResultInfos();
+  static async search(browser, logError) {
+    await Scraper.clickWait(browser, 'input#btnSuche', logError);
+    return Scraper.getResultInfos({ browser });
   }
 
-  async getResultInfos() {
+  static async getResultInfos({ browser }) {
     const reg = /Seite (\d*) von (\d*) \(Treffer (\d*) bis (\d*) von (\d*)\)/;
-    this.page.waitForSelector('#inhaltsbereich');
-    const resultsNumberString = await this.page.evaluate(
+    browser.page.waitForSelector('#inhaltsbereich');
+    const resultsNumberString = await browser.page.evaluate(
       sel => document.querySelector(sel).outerHTML,
       '#inhaltsbereich',
     );
@@ -262,35 +213,41 @@ class Scraper {
     };
   }
 
-  async getEntriesFromSearch({
-    progressStart, progressUpdate, progressStop, doScrape, logError,
+  static async getEntriesFromSearch({
+    logStartLinkProgress,
+    logUpdateLinkProgress,
+    logStopLinkProgress,
+    doScrape,
+    logError,
+    browser,
   }) {
     let links = [];
-    const resultInfos = await this.getResultInfos();
-    await progressStart(resultInfos.pageSum, resultInfos.pageCurrent);
+    const resultInfos = await Scraper.getResultInfos({ browser });
+    await logStartLinkProgress(resultInfos.pageSum, resultInfos.pageCurrent);
     for (
       let i = parseInt(resultInfos.pageCurrent, 10);
       i <= parseInt(resultInfos.pageSum, 10);
       i += 1
     ) {
-      const pageLinks = await this.getEntriesFromPage({ doScrape });
+      const pageLinks = await Scraper.getEntriesFromPage({ doScrape, browser });
       links = links.concat(pageLinks);
-      const curResultInfos = await this.getResultInfos();
-      await progressUpdate(curResultInfos.pageCurrent);
+      const curResultInfos = await Scraper.getResultInfos({ browser });
+      await logUpdateLinkProgress(curResultInfos.pageCurrent);
       if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
-        await this.clickWait(
+        await Scraper.clickWait(
+          browser,
           '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input',
           logError,
         );
       } else {
-        progressStop();
+        logStopLinkProgress();
       }
     }
     return links;
   }
 
-  async getEntriesFromPage({ doScrape }) {
-    const links = await this.page.$$eval(
+  static async getEntriesFromPage({ doScrape, browser }) {
+    const links = await browser.page.$$eval(
       '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody > tr',
       els =>
         els.map(el => ({
@@ -321,7 +278,6 @@ class Scraper {
 
     const dataProcess = await Scraper.getProcessData(link, page);
     const dataProcessRunning = await Scraper.getProcessRunningData(vorgangId, page);
-    // await this.getCoAdvisedOperationsData(vorgangId, page);
 
     const processData = {
       vorgangId,
@@ -348,24 +304,19 @@ class Scraper {
     return x2j.xml2js(xmlString);
   }
 
-  async clickWait(selector, logError) {
+  static async clickWait(browser, selector, logError) {
     try {
       return await Promise.all([
-        this.page.click(selector),
-        this.page.waitForNavigation({
+        browser.page.click(selector),
+        browser.page.waitForNavigation({
           waitUntil: ['domcontentloaded'],
         }),
-        this.page.waitForSelector('#footer'),
+        browser.page.waitForSelector('#footer'),
       ]);
     } catch (error) {
       logError(error);
       return null;
     }
-  }
-
-  async finish(finished) {
-    await this.browser.close();
-    finished();
   }
 }
 
