@@ -14,8 +14,8 @@ const URLS = {
 
 class Scraper {
   async scrape({
-    selectPeriod = () => null,
-    selectOperationTypes = () => null,
+    selectPeriod = () => '',
+    selectOperationTypes = () => '',
     logStartLinkProgress = () => {},
     logUpdateLinkProgress = () => {},
     logStopLinkProgress = () => {},
