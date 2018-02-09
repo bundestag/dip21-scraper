@@ -143,8 +143,12 @@ const outScraperData = async (process, processData) => {
 
 const doScrape = () => true;
 
-try {
-  scraper.scrape({
+const logFatalError = (error) => {
+  console.log(`Fatal: ${error}`);
+};
+
+scraper
+  .scrape({
     selectPeriod,
     selectOperationTypes,
     logStartLinkProgress,
@@ -155,11 +159,13 @@ try {
     logStopDataProgress,
     logFinished,
     logError,
+    logFatalError,
     outScraperLinks,
     outScraperData,
     doScrape,
     browserStackSize: () => 7,
+    timeoutSearch: () => 5000,
+  })
+  .catch((error) => {
+    console.error(error);
   });
-} catch (error) {
-  console.error(error);
-}

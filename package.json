@@ -9,7 +9,7 @@
     "dip21-scraper": "distribution/cli.js"
   },
   "scripts": {
-    "start": "node src/cli.js",
+    "start": "babel-node src/cli.js",
     "lint": "eslint ./src",
     "build": "babel src --out-dir distribution",
     "prepublish": "npm run build"
@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",
+    "babel-plugin-transform-class-properties": "^6.24.1",
     "babel-plugin-transform-object-rest-spread": "^6.26.0",
     "babel-preset-env": "^1.6.1",
     "babel-preset-es2015": "^6.24.1",
