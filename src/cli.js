@@ -29,7 +29,7 @@ const barLink = new Progress.Bar(
 const barData = new Progress.Bar(
   {
     format:
-      '[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total} | {errorCounter}',
+      '[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total} | {retries}/{maxRetries}',
   },
   Progress.Presets.shades_classic,
 );
@@ -98,13 +98,13 @@ const logStopLinkProgress = async () => {
   barLink.stop();
 };
 
-const logStartDataProgress = async (sum, errorCounter) => {
+const logStartDataProgress = async ({ sum, retries, maxRetries }) => {
   console.log('Einträge downloaden');
-  barData.start(sum, 0, errorCounter);
+  barData.start(sum, 0, { retries, maxRetries });
 };
 
-const logUpdateDataProgress = async (current, errorCounter) => {
-  barData.update(current, errorCounter);
+const logUpdateDataProgress = async ({ value, retries, maxRetries }) => {
+  barData.update(value, { retries, maxRetries });
 };
 
 const logStopDataProgress = async () => {
@@ -146,6 +146,18 @@ const doScrape = () => true;
 const logFatalError = (error) => {
   console.log(`Fatal: ${error}`);
 };
+
+// HANDLE EXIT
+// so the program will not close instantly
+// process.stdin.resume();
+// do something when app is closing
+// process.on('exit', scraper.finalize.bind(scraper));
+// process.on('SIGINT', scraper.finalize.bind(scraper));
+// catches "kill pid" (for example: nodemon restart)
+// process.on('SIGUSR1', scraper.finalize.bind(scraper));
+// process.on('SIGUSR2', scraper.finalize.bind(scraper));
+// catches uncaught exceptions
+// process.on('uncaughtException', scraper.finalize.bind(scraper));
 
 scraper
   .scrape({

@@ -8,7 +8,7 @@ const x2j = new X2JS();
 const URLS = {
   basisInfos: 'https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail.do',
   processRunning:
-    'https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail_vp.do',
+    'https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail_vp.do?vorgangId=',
   start: 'https://dipbt.bundestag.de/dip21.web/bt',
   search: 'https://dipbt.bundestag.de/dip21.web/searchProcedures.do;jsessionid=',
 };
@@ -38,7 +38,7 @@ class Scraper {
   async scrape(options) {
     this.options = { ...this.defaultOptions, ...options };
     this.stack = await Promise.all(this.createBrowserStack());
-    this.browser = await this.findFreeBrowser(); // Main Browser from the stack
+    this.browser = await this.stack.find(() => true); // Main Browser from the stack
     await this.goToSearch();
 
     // Select Period & operationTypes
@@ -46,17 +46,19 @@ class Scraper {
     await this.selectOperationTypes();
 
     // Search
-    await this.search();
-    this.links = await this.getEntriesFromSearch();
-    await this.options.logStartDataProgress(this.links.length, this.getErrorCount());
+    this.links = await this.search();
 
     // Data
     this.completedLinks = 0;
     this.retries = 0;
-    const promises = this.stack.map(async (browser, browserIndex) => {
-      await this.startAnalyse(browserIndex);
+    await this.options.logStartDataProgress({
+      sum: this.links.length,
+      retries: this.retries,
+      maxRetries: this.options.maxRetries,
     });
-    await Promise.all(promises).then(() => {
+    await Promise.all(this.stack.map(async (browser, browserIndex) => {
+      await this.startAnalyse(browserIndex);
+    })).then(() => {
       // Finalize
       this.options.logStopDataProgress();
       this.finalize();
@@ -64,44 +66,42 @@ class Scraper {
     });
   }
 
-  async analyseLink(link, browser) {
-    await Scraper.saveJson(link.url, browser.page, this.options.outScraperData).then(() => {
-      this.completedLinks += 1;
-      this.options.logUpdateDataProgress(this.completedLinks, this.getErrorCount());
-    });
-  }
-
   async startAnalyse(browserIndex) {
     const linkIndex = this.links.findIndex(({ scraped }) => !scraped);
     if (linkIndex !== -1) {
       this.links[linkIndex].scraped = true;
-      await this.analyseLink(this.links[linkIndex], this.stack[browserIndex])
+      await this.saveJson({ link: this.links[linkIndex].url, page: this.stack[browserIndex].page })
         .then(() => {
+          this.completedLinks += 1;
           this.options.outScraperLinks(this.links);
+          this.options.logUpdateDataProgress({
+            value: this.completedLinks,
+            retries: this.retries,
+            maxRetries: this.options.maxRetries,
+          });
         })
         .catch(async (err) => {
           this.options.logError(err);
-          this.stack[browserIndex].errorCount += 1;
           this.links[linkIndex].scraped = false;
-          if (this.stack[browserIndex].errorCount > 5) {
-            await this.createNewBrowser(this.stack[browserIndex])
-              .then((newBrowser) => {
-                this.stack[browserIndex] = newBrowser;
-                this.options.logUpdateDataProgress(this.completedLinks, this.getErrorCount());
-              })
-              .catch(err2 => this.options.logError(err2));
-          }
+          await this.createNewBrowser(this.stack[browserIndex])
+            .then((newBrowser) => {
+              this.stack[browserIndex] = newBrowser;
+              this.options.logUpdateDataProgress({
+                value: this.completedLinks,
+                retries: this.retries,
+                maxRetries: this.options.maxRetries,
+              });
+            })
+            .catch(err2 => this.options.logError(err2));
         });
       await this.startAnalyse(browserIndex);
     }
   }
 
-  async findFreeBrowser() {
-    return this.stack.find(({ used }) => used === false);
-  }
-
   finalize() {
-    this.stack.forEach(b => b.browser.close());
+    if (this.stack) {
+      this.stack.forEach(b => b.browser.close());
+    }
   }
 
   fatalError({ error }) {
@@ -117,19 +117,10 @@ class Scraper {
       this.createNewBrowser(browserObject));
   }
 
-  getErrorCount() {
-    return {
-      errorCounter: this.stack.map(({ errorCount }) => (errorCount < 1 ? errorCount : `${errorCount}`.red)),
-    };
-  }
-
   async createNewBrowser(browserObject = {}) {
     if (browserObject.browser) {
       await browserObject.browser.close();
     }
-    /* if (browserObject) {
-      browserObject.errorCount += 1;
-    } */
     try {
       const browser = await puppeteer.launch();
       const page = await browser.newPage();
@@ -154,7 +145,6 @@ class Scraper {
         browser,
         page,
         used: false,
-        errorCount: 0,
       };
     } catch (error) {
       if (this.options.maxRetries() < this.retries) {
@@ -217,11 +207,6 @@ class Scraper {
     );
   }
 
-  async search() {
-    await this.clickWait(this.browser, 'input#btnSuche');
-    return this.getResultInfos({ browser: this.browser });
-  }
-
   async getResultInfos({ browser }) {
     const reg = /Seite (\d*) von (\d*) \(Treffer (\d*) bis (\d*) von (\d*)\)/;
     await browser.page.waitForSelector('#inhaltsbereich').catch((error) => {
@@ -246,7 +231,8 @@ class Scraper {
     return null;
   }
 
-  async getEntriesFromSearch() {
+  async search() {
+    await this.clickWait({ browser: this.browser, selector: 'input#btnSuche' });
     let links = [];
     const resultInfos = await this.getResultInfos({ browser: this.browser });
     await this.options.logStartLinkProgress(resultInfos.pageSum, resultInfos.pageCurrent);
@@ -263,11 +249,11 @@ class Scraper {
       const curResultInfos = await this.getResultInfos({ browser: this.browser });
       await this.options.logUpdateLinkProgress(curResultInfos.pageCurrent);
       if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
-        await this.clickWait(
-          this.browser,
-          '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input',
-          this.options.logError,
-        );
+        await this.clickWait({
+          browser: this.browser,
+          selector:
+            '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input',
+        });
       } else {
         this.options.logStopLinkProgress();
       }
@@ -297,7 +283,7 @@ class Scraper {
     return links.filter(link => doScrape(link));
   }
 
-  static async saveJson(link, page, logData) {
+  async saveJson({ link, page }) {
     const processId = /\[ID:&nbsp;(.*?)\]/;
     // const xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
     await page.goto(link);
@@ -313,35 +299,33 @@ class Scraper {
     const queryObj = Querystring.parse(urlObj.query);
     const vorgangId = queryObj.selId;
 
-    const dataProcess = await Scraper.getProcessData(link, page);
-    const dataProcessRunning = await Scraper.getProcessRunningData(vorgangId, page);
+    const dataProcedure = await Scraper.getProcedureData({ page });
+    await page.goto(`${URLS.processRunning}${vorgangId}`, {});
+    const dataProcedureRunning = await Scraper.getProcedureRunningData({ page });
 
-    const processData = {
+    const procedureData = {
       vorgangId,
-      ...dataProcess,
-      ...dataProcessRunning,
+      ...dataProcedure,
+      ...dataProcedureRunning,
     };
-    logData(process, processData);
+    this.options.outScraperData(process, procedureData);
   }
 
-  static async getProcessData(link, page) {
+  static async getProcedureData({ page }) {
     const xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
     const html = await page.content();
     const xmlString = html.match(xmlRegex)[0].replace('<- VORGANGSABLAUF ->', '');
-
     return x2j.xml2js(xmlString);
   }
 
-  static async getProcessRunningData(vorgangId, page) {
-    await page.goto(`${URLS.processRunning}?vorgangId=${vorgangId}`, {});
+  static async getProcedureRunningData({ page }) {
     const xmlRegex = /<VORGANGSABLAUF>(.|\n)*?<\/VORGANGSABLAUF>/;
     const html = await page.content();
     const xmlString = html.match(xmlRegex)[0];
-
     return x2j.xml2js(xmlString);
   }
 
-  async clickWait(browser, selector) {
+  async clickWait({ browser, selector }) {
     try {
       return await Promise.all([
         browser.page.click(selector),
