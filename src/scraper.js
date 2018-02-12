@@ -279,12 +279,20 @@ class Scraper {
     const links = await browser.page.$$eval(
       '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody > tr',
       els =>
-        els.map(el => ({
-          id: el.querySelector('a.linkIntern').href.match(/selId=(\d.*?)&/)[1],
-          url: el.querySelector('a.linkIntern').href,
-          date: el.querySelector('td:nth-child(4)').innerHTML,
-          scraped: false,
-        })),
+        els.map((el) => {
+          const urlSelector = el.querySelector('a.linkIntern');
+          const dateSelector = el.querySelector('td:nth-child(4)');
+          if (urlSelector && dateSelector) {
+            return {
+              id: urlSelector.href.match(/selId=(\d.*?)&/)[1],
+              url: urlSelector.href,
+              date: dateSelector.innerHTML,
+              scraped: false,
+            };
+          }
+          this.fatalError();
+          return null;
+        }),
     );
     return links.filter(link => doScrape(link));
   }
