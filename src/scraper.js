@@ -127,9 +127,9 @@ class Scraper {
     if (browserObject.browser) {
       await browserObject.browser.close();
     }
-    if (browserObject) {
+    /* if (browserObject) {
       browserObject.errorCount += 1;
-    }
+    } */
     try {
       const browser = await puppeteer.launch();
       const page = await browser.newPage();
@@ -161,7 +161,8 @@ class Scraper {
         this.retries += 1;
         return this.createNewBrowser(browserObject);
       }
-      this.fatalError({ error });
+      this.fatalError({ error }); // throws
+      return null;
     }
   }
 
@@ -176,7 +177,6 @@ class Scraper {
       .waitForSelector('input#btnSuche', { timeout: this.options.timeoutSearch() })
       .catch((error) => {
         this.fatalError({ error });
-        th;
       });
     const selectField = await this.browser.page.evaluate(
       sel => document.querySelector(sel).outerHTML,
@@ -243,6 +243,7 @@ class Scraper {
     }
     const error = new Error('Search Pagination not found');
     this.fatalError({ error });
+    return null;
   }
 
   async getEntriesFromSearch() {
