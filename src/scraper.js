@@ -73,17 +73,17 @@ class Scraper {
       await this.saveJson({ link: this.links[linkIndex].url, page: this.stack[browserIndex].page })
         .then(() => {
           this.completedLinks += 1;
-          this.options.outScraperLinks(this.links);
+          this.options.outScraperLinks({ links: this.links });
           this.options.logUpdateDataProgress({
             value: this.completedLinks,
             retries: this.retries,
             maxRetries: this.options.maxRetries,
           });
         })
-        .catch(async (err) => {
-          this.options.logError(err);
+        .catch(async (error) => {
+          this.options.logError({ error });
           this.links[linkIndex].scraped = false;
-          await this.createNewBrowser(this.stack[browserIndex])
+          await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
             .then((newBrowser) => {
               this.stack[browserIndex] = newBrowser;
               this.options.logUpdateDataProgress({
@@ -92,7 +92,7 @@ class Scraper {
                 maxRetries: this.options.maxRetries,
               });
             })
-            .catch(err2 => this.options.logError(err2));
+            .catch(err => this.options.logError({ error: err }));
         });
       await this.startAnalyse(browserIndex);
     }
@@ -105,7 +105,7 @@ class Scraper {
   }
 
   fatalError({ error }) {
-    this.options.logFatalError(error);
+    this.options.logFatalError({ error });
     this.options.logStopLinkProgress();
     this.options.logStopDataProgress();
     this.finalize();
@@ -114,10 +114,10 @@ class Scraper {
 
   createBrowserStack() {
     return [...Array(this.options.browserStackSize())].map(browserObject =>
-      this.createNewBrowser(browserObject));
+      this.createNewBrowser({ browserObject }));
   }
 
-  async createNewBrowser(browserObject = {}) {
+  async createNewBrowser({ browserObject = {} }) {
     if (browserObject.browser) {
       await browserObject.browser.close();
     }
@@ -149,7 +149,7 @@ class Scraper {
     } catch (error) {
       if (this.options.maxRetries() < this.retries) {
         this.retries += 1;
-        return this.createNewBrowser(browserObject);
+        return this.createNewBrowser({ browserObject });
       }
       this.fatalError({ error }); // throws
       return null;
@@ -182,7 +182,7 @@ class Scraper {
     const periods = await this.takePeriods();
     await Promise.all([
       this.browser.page.waitForNavigation({ waitUntil: ['domcontentloaded'] }),
-      this.browser.page.select('select#wahlperiode', await this.options.selectPeriod(periods)),
+      this.browser.page.select('select#wahlperiode', await this.options.selectPeriod({ periods })),
     ]);
   }
 
@@ -203,7 +203,7 @@ class Scraper {
     const operationTypes = await this.takeOperationTypes();
     await this.browser.page.select(
       'select#includeVorgangstyp',
-      ...(await this.options.selectOperationTypes(operationTypes)),
+      ...(await this.options.selectOperationTypes({ operationTypes })),
     );
   }
 
@@ -235,19 +235,21 @@ class Scraper {
     await this.clickWait({ browser: this.browser, selector: 'input#btnSuche' });
     let links = [];
     const resultInfos = await this.getResultInfos({ browser: this.browser });
-    await this.options.logStartLinkProgress(resultInfos.pageSum, resultInfos.pageCurrent);
+    await this.options.logStartLinkProgress({
+      sum: resultInfos.pageSum,
+      value: resultInfos.pageCurrent,
+    });
     for (
       let i = parseInt(resultInfos.pageCurrent, 10);
       i <= parseInt(resultInfos.pageSum, 10);
       i += 1
     ) {
-      const pageLinks = await Scraper.getEntriesFromPage({
-        doScrape: this.options.doScrape,
+      const pageLinks = await this.getEntriesFromPage({
         browser: this.browser,
       });
       links = links.concat(pageLinks);
       const curResultInfos = await this.getResultInfos({ browser: this.browser });
-      await this.options.logUpdateLinkProgress(curResultInfos.pageCurrent);
+      await this.options.logUpdateLinkProgress({ value: curResultInfos.pageCurrent });
       if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
         await this.clickWait({
           browser: this.browser,
@@ -261,7 +263,7 @@ class Scraper {
     return links;
   }
 
-  static async getEntriesFromPage({ doScrape, browser }) {
+  async getEntriesFromPage({ browser }) {
     const links = await browser.page.$$eval(
       '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody > tr',
       els =>
@@ -280,11 +282,11 @@ class Scraper {
           return null;
         }),
     );
-    return links.filter(link => doScrape(link));
+    return links.filter(link => this.options.doScrape({ data: link }));
   }
 
   async saveJson({ link, page }) {
-    const processId = /\[ID:&nbsp;(.*?)\]/;
+    const procedureId = /\[ID:&nbsp;(.*?)\]/;
     // const xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
     await page.goto(link);
 
@@ -293,7 +295,7 @@ class Scraper {
       '#inhaltsbereich',
     );
 
-    const process = content.match(processId)[1];
+    const procedure = content.match(procedureId)[1];
 
     const urlObj = Url.parse(link);
     const queryObj = Querystring.parse(urlObj.query);
@@ -308,7 +310,7 @@ class Scraper {
       ...dataProcedure,
       ...dataProcedureRunning,
     };
-    this.options.outScraperData(process, procedureData);
+    this.options.outScraperData({ procedure, procedureData });
   }
 
   static async getProcedureData({ page }) {
@@ -335,7 +337,7 @@ class Scraper {
         browser.page.waitForSelector('#footer'),
       ]);
     } catch (error) {
-      this.options.logError(error);
+      this.options.logError({ error });
       return null;
     }
   }

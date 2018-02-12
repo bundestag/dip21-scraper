@@ -34,7 +34,7 @@ const barData = new Progress.Bar(
   Progress.Presets.shades_classic,
 );
 
-const selectPeriod = async (periods) => {
+const selectPeriod = async ({ periods }) => {
   let selectedPeriod = program.period;
   if (!selectedPeriod) {
     const period = await inquirer.prompt({
@@ -55,7 +55,7 @@ const selectPeriod = async (periods) => {
   return selectedPeriod;
 };
 
-const selectOperationTypes = async (operationTypes) => {
+const selectOperationTypes = async ({ operationTypes }) => {
   let selectedOperationTypes = [];
   if (!program.operationtypes) {
     const operationType = await inquirer.prompt({
@@ -84,14 +84,14 @@ const logFinished = async () => {
   console.log('############### FINISH ###############');
 };
 
-const logStartLinkProgress = async (sum, current) => {
+const logStartLinkProgress = async ({ sum, value }) => {
   console.log('Eintragslinks sammeln');
 
-  barLink.start(sum, current);
+  barLink.start(sum, value);
 };
 
-const logUpdateLinkProgress = async (current) => {
-  barLink.update(current);
+const logUpdateLinkProgress = async ({ value }) => {
+  barLink.update(value);
 };
 
 const logStopLinkProgress = async () => {
@@ -111,11 +111,11 @@ const logStopDataProgress = async () => {
   barData.stop();
 };
 
-const logError = (error) => {
+const logError = ({ error }) => {
   console.log(error);
 };
 
-const outScraperLinks = async (links) => {
+const outScraperLinks = async ({ links }) => {
   jsonfile.writeFile(
     `links-${program.period}-${program.operationtypes}.json`,
     links,
@@ -127,12 +127,14 @@ const outScraperLinks = async (links) => {
   );
 };
 
-const outScraperData = async (process, processData) => {
-  const directory = `files/${processData.VORGANG.WAHLPERIODE}/${processData.VORGANG.VORGANGSTYP}`;
+const outScraperData = async ({ procedure, procedureData }) => {
+  const directory = `files/${procedureData.VORGANG.WAHLPERIODE}/${
+    procedureData.VORGANG.VORGANGSTYP
+  }`;
   await fs.ensureDir(directory);
   jsonfile.writeFile(
-    `${directory}/${process}.json`,
-    processData,
+    `${directory}/${procedure}.json`,
+    procedureData,
     {
       spaces: 2,
       EOL: '\r\n',
@@ -141,9 +143,7 @@ const outScraperData = async (process, processData) => {
   );
 };
 
-const doScrape = () => true;
-
-const logFatalError = (error) => {
+const logFatalError = ({ error }) => {
   console.log(`Fatal: ${error}`);
 };
 
@@ -174,9 +174,7 @@ scraper
     logFatalError,
     outScraperLinks,
     outScraperData,
-    doScrape,
     browserStackSize: () => 7,
-    timeoutSearch: () => 5000,
   })
   .catch((error) => {
     console.error(error);
