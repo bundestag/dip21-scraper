@@ -57,7 +57,7 @@ class Scraper {
       await this.startAnalyse(browserIndex);
     });
     await Promise.all(promises).then(() => {
-      //Finalize
+      // Finalize
       this.options.logStopDataProgress();
       this.finalize();
       this.options.logFinished();
@@ -79,13 +79,13 @@ class Scraper {
         .then(() => {
           this.options.outScraperLinks(this.links);
         })
-        .catch(async err => {
+        .catch(async (err) => {
           this.options.logError(err);
           this.stack[browserIndex].errorCount += 1;
           this.links[linkIndex].scraped = false;
           if (this.stack[browserIndex].errorCount > 5) {
             await this.createNewBrowser(this.stack[browserIndex])
-              .then(newBrowser => {
+              .then((newBrowser) => {
                 this.stack[browserIndex] = newBrowser;
                 this.options.logUpdateDataProgress(this.completedLinks, this.getErrorCount());
               })
@@ -114,15 +114,12 @@ class Scraper {
 
   createBrowserStack() {
     return [...Array(this.options.browserStackSize())].map(browserObject =>
-      this.createNewBrowser(browserObject),
-    );
+      this.createNewBrowser(browserObject));
   }
 
   getErrorCount() {
     return {
-      errorCounter: this.stack.map(
-        ({ errorCount }) => (errorCount < 1 ? errorCount : `${errorCount}`.red),
-      ),
+      errorCounter: this.stack.map(({ errorCount }) => (errorCount < 1 ? errorCount : `${errorCount}`.red)),
     };
   }
 
@@ -137,7 +134,7 @@ class Scraper {
       const browser = await puppeteer.launch();
       const page = await browser.newPage();
       await page.setRequestInterception(true);
-      page.on('request', request => {
+      page.on('request', (request) => {
         switch (request.resourceType()) {
           case 'image':
           case 'script':
@@ -163,9 +160,8 @@ class Scraper {
       if (this.options.maxRetries() < this.retries) {
         this.retries += 1;
         return this.createNewBrowser(browserObject);
-      } else {
-        this.fatalError({ error });
       }
+      this.fatalError({ error });
     }
   }
 
@@ -178,7 +174,7 @@ class Scraper {
   async takePeriods() {
     await this.browser.page
       .waitForSelector('input#btnSuche', { timeout: this.options.timeoutSearch() })
-      .catch(error => {
+      .catch((error) => {
         this.fatalError({ error });
         th;
       });
@@ -228,7 +224,7 @@ class Scraper {
 
   async getResultInfos({ browser }) {
     const reg = /Seite (\d*) von (\d*) \(Treffer (\d*) bis (\d*) von (\d*)\)/;
-    await browser.page.waitForSelector('#inhaltsbereich').catch(error => {
+    await browser.page.waitForSelector('#inhaltsbereich').catch((error) => {
       this.fatalError({ error });
     });
     const resultsNumberString = await browser.page.evaluate(
@@ -244,10 +240,9 @@ class Scraper {
         entriesTo: paginator[4],
         entriesSum: paginator[5],
       };
-    } else {
-      const error = new Error('Search Pagination not found');
-      this.fatalError({ error });
     }
+    const error = new Error('Search Pagination not found');
+    this.fatalError({ error });
   }
 
   async getEntriesFromSearch() {
