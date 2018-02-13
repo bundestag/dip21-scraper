@@ -30,13 +30,15 @@ class Scraper {
     outScraperData: () => {},
     doScrape: () => true,
     browserStackSize: () => 1,
-    timeoutStart: () => 10000,
-    timeoutSearch: () => 5000,
+    timeoutStart: () => 30000,
+    timeoutSearch: () => 30000,
+    timeoutProcedure: () => 30000,
     maxRetries: () => 20,
   };
 
   async scrape(options) {
     this.options = { ...this.defaultOptions, ...options };
+    this.retries = -this.options.browserStackSize();
     this.stack = await Promise.all(this.createBrowserStack());
     this.browser = await this.stack.find(() => true); // Main Browser from the stack
     await this.goToSearch();
@@ -50,7 +52,6 @@ class Scraper {
 
     // Data
     this.completedLinks = 0;
-    this.retries = 0;
     await this.options.logStartDataProgress({
       sum: this.links.length,
       retries: this.retries,
@@ -92,7 +93,7 @@ class Scraper {
                 maxRetries: this.options.maxRetries,
               });
             })
-            .catch(err => this.options.logError({ error: err }));
+            .catch(err => this.fatalError({ error: err }));
         });
       await this.startAnalyse(browserIndex);
     }
@@ -121,6 +122,11 @@ class Scraper {
     if (browserObject.browser) {
       await browserObject.browser.close();
     }
+    if (this.options.maxRetries() <= this.retries) {
+      const error = new Error(`Maximum Retries reached ${this.retries}/${this.options.maxRetries()}`);
+      this.fatalError({ error }); // throws
+    }
+    this.retries += 1;
     try {
       const browser = await puppeteer.launch();
       const page = await browser.newPage();
@@ -147,19 +153,18 @@ class Scraper {
         used: false,
       };
     } catch (error) {
-      if (this.options.maxRetries() < this.retries) {
-        this.retries += 1;
-        return this.createNewBrowser({ browserObject });
-      }
-      this.fatalError({ error }); // throws
-      return null;
+      return this.createNewBrowser({ browserObject });
     }
   }
 
   async goToSearch() {
     const cookies = await this.browser.page.cookies();
     const jssessionCookie = cookies.filter(c => c.name === 'JSESSIONID');
-    await this.browser.page.goto(URLS.search + jssessionCookie[0].value);
+    await this.browser.page.goto(URLS.search + jssessionCookie[0].value, {
+      timeout: this.options.timeoutSearch(),
+    }).catch((error) => {
+      this.fatalError({ error });
+    });
   }
 
   async takePeriods() {
@@ -171,7 +176,9 @@ class Scraper {
     const selectField = await this.browser.page.evaluate(
       sel => document.querySelector(sel).outerHTML,
       '#wahlperiode',
-    );
+    ).catch((error) => {
+      this.fatalError({ error });
+    });
     const values = x2j
       .xml2js(selectField)
       .select.option.map(o => ({ value: o._value, name: o.__text }));
@@ -190,7 +197,9 @@ class Scraper {
     const selectField = await this.browser.page.evaluate(
       sel => document.querySelector(sel).outerHTML,
       '#includeVorgangstyp',
-    );
+    ).catch((error) => {
+      this.fatalError({ error });
+    });
     const values = x2j.xml2js(selectField).select.option.map(o => ({
       value: o._value,
       name: o.__text,
@@ -215,7 +224,9 @@ class Scraper {
     const resultsNumberString = await browser.page.evaluate(
       sel => document.querySelector(sel).outerHTML,
       '#inhaltsbereich',
-    );
+    ).catch((error) => {
+      this.fatalError({ error });
+    });
     const paginator = resultsNumberString.match(reg);
     if (paginator) {
       return {
@@ -234,7 +245,8 @@ class Scraper {
   async search() {
     await this.clickWait({ browser: this.browser, selector: 'input#btnSuche' });
     let links = [];
-    const resultInfos = await this.getResultInfos({ browser: this.browser });
+    const resultInfos = await this.getResultInfos({ browser: this.browser })
+      .catch((error) => { this.fatalError(error); });
     await this.options.logStartLinkProgress({
       sum: resultInfos.pageSum,
       value: resultInfos.pageCurrent,
@@ -248,7 +260,8 @@ class Scraper {
         browser: this.browser,
       });
       links = links.concat(pageLinks);
-      const curResultInfos = await this.getResultInfos({ browser: this.browser });
+      const curResultInfos = await this.getResultInfos({ browser: this.browser })
+        .catch((error) => { this.fatalError(error); });
       await this.options.logUpdateLinkProgress({ value: curResultInfos.pageCurrent });
       if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
         await this.clickWait({
@@ -278,7 +291,8 @@ class Scraper {
               scraped: false,
             };
           }
-          this.fatalError();
+          const error = new Error('Could not get Entries from Page');
+          this.fatalError({ error });
           return null;
         }),
     );
@@ -286,31 +300,46 @@ class Scraper {
   }
 
   async saveJson({ link, page }) {
-    const procedureId = /\[ID:&nbsp;(.*?)\]/;
-    // const xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
-    await page.goto(link);
+    const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
+    await page.goto(link, {
+      timeout: this.options.timeoutProcedure(),
+    }).catch((error) => {
+      this.fatalError({ error });
+    });
 
     const content = await page.evaluate(
       sel => document.querySelector(sel).innerHTML,
       '#inhaltsbereich',
     );
 
-    const procedure = content.match(procedureId)[1];
+    const procedureId = content.match(procedureIdRegex)[1];
 
     const urlObj = Url.parse(link);
     const queryObj = Querystring.parse(urlObj.query);
     const vorgangId = queryObj.selId;
+    if (procedureId.substring(3) !== vorgangId) {
+      const error = new Error(`Procedure ID missmatch URL: "${vorgangId}" to HTML: "${procedureId.substring(3)}"`);
+      this.fatalError({ error });
+    }
 
-    const dataProcedure = await Scraper.getProcedureData({ page });
-    await page.goto(`${URLS.processRunning}${vorgangId}`, {});
-    const dataProcedureRunning = await Scraper.getProcedureRunningData({ page });
+    const dataProcedure = await Scraper.getProcedureData({ page }).catch((error) => {
+      this.fatalError(error);
+    });
+    await page.goto(`${URLS.processRunning}${vorgangId}`, {
+      timeout: this.options.timeoutProcedure(),
+    }).catch((error) => {
+      this.fatalError({ error });
+    });
+    const dataProcedureRunning = await Scraper.getProcedureRunningData({ page }).catch((error) => {
+      this.fatalError({ error });
+    });
 
     const procedureData = {
       vorgangId,
       ...dataProcedure,
       ...dataProcedureRunning,
     };
-    this.options.outScraperData({ procedure, procedureData });
+    this.options.outScraperData({ procedureId, procedureData });
   }
 
   static async getProcedureData({ page }) {

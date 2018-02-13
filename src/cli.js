@@ -6,6 +6,7 @@ const inquirer = require('inquirer');
 const Progress = require('cli-progress');
 const jsonfile = require('jsonfile');
 const fs = require('fs-extra');
+// const readline = require('readline');
 
 program
   .version('0.0.1')
@@ -111,9 +112,9 @@ const logStopDataProgress = async () => {
   barData.stop();
 };
 
-const logError = ({ error }) => {
+/* const logError = ({ error }) => {
   console.log(error);
-};
+}; */
 
 const outScraperLinks = async ({ links }) => {
   jsonfile.writeFile(
@@ -149,16 +150,28 @@ const logFatalError = ({ error }) => {
 
 // HANDLE EXIT
 // so the program will not close instantly
-// process.stdin.resume();
-// do something when app is closing
-// process.on('exit', scraper.finalize.bind(scraper));
-// process.on('SIGINT', scraper.finalize.bind(scraper));
-// catches "kill pid" (for example: nodemon restart)
-// process.on('SIGUSR1', scraper.finalize.bind(scraper));
-// process.on('SIGUSR2', scraper.finalize.bind(scraper));
-// catches uncaught exceptions
-// process.on('uncaughtException', scraper.finalize.bind(scraper));
+/* if (process.platform === 'win32') {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
 
+  rl.on('SIGINT', () => {
+    process.emit('SIGINT');
+  });
+} */
+
+/*
+process.stdin.resume();
+// do something when app is closing
+process.on('exit', scraper.finalize.bind(scraper));
+process.on('SIGINT', scraper.finalize.bind(scraper));
+// catches "kill pid" (for example: nodemon restart)
+process.on('SIGUSR1', scraper.finalize.bind(scraper));
+process.on('SIGUSR2', scraper.finalize.bind(scraper));
+// catches uncaught exceptions
+process.on('uncaughtException', scraper.finalize.bind(scraper));
+*/
 scraper
   .scrape({
     selectPeriod,
@@ -170,7 +183,7 @@ scraper
     logUpdateDataProgress,
     logStopDataProgress,
     logFinished,
-    logError,
+    // logError,
     logFatalError,
     outScraperLinks,
     outScraperData,
