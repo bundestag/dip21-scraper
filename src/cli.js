@@ -44,16 +44,15 @@ const selectPeriod = async ({ periods }) => {
       message: 'Wähle eine Legislaturperiode',
       choices: periods,
     });
-    selectedPeriod = period.value;
+    selectedPeriod = periods.find(p => p.value === period.value).name;
+    console.log(`Selected Period '${selectedPeriod}'`);
+    return selectedPeriod;
   } else if (!periods.find(period => period.name === selectedPeriod)) {
     console.log(`'${selectedPeriod}' is not a valid option for period`);
     process.exit(1);
   }
-  if (selectedPeriod === 'Alle') {
-    selectedPeriod = '';
-  }
   console.log(`Selected Period '${selectedPeriod}'`);
-  return selectedPeriod;
+  return periods.find(period => period.name === selectedPeriod).name;
 };
 
 const selectOperationTypes = async ({ operationTypes }) => {
@@ -65,18 +64,17 @@ const selectOperationTypes = async ({ operationTypes }) => {
       message: 'Wähle Vorgangstyp(en)',
       choices: operationTypes,
     });
-    selectedOperationTypes = operationType.values;
-  } else {
-    const selectedOperationTypesProto = program.operationtypes.split(',');
-    selectedOperationTypes = selectedOperationTypesProto
-      .map((sNumber) => {
-        const selection = operationTypes.find(({ number }) => number === sNumber);
+    selectedOperationTypes = operationType.values
+      .map((v) => {
+        const selection = operationTypes.find(({ value }) => value === v);
         if (selection) {
-          return selection.value;
+          return selection.number;
         }
         return undefined;
       })
       .filter(v => v !== undefined);
+  } else {
+    selectedOperationTypes = program.operationtypes.split(',');
   }
   return selectedOperationTypes;
 };

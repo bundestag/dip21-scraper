@@ -100,9 +100,9 @@ class Scraper {
   }
 
   finalize() {
-    if (this.stack) {
+    try {
       this.stack.forEach(b => b.browser.close());
-    }
+    } catch (error) { /* empty block */ }
   }
 
   fatalError({ error }) {
@@ -187,9 +187,11 @@ class Scraper {
 
   async selectPeriod() {
     const periods = await this.takePeriods();
+    const selectedPeriod = await this.options.selectPeriod({ periods });
+    const period = periods.find(p => p.name === selectedPeriod);
     await Promise.all([
       this.browser.page.waitForNavigation({ waitUntil: ['domcontentloaded'] }),
-      this.browser.page.select('select#wahlperiode', await this.options.selectPeriod({ periods })),
+      this.browser.page.select('select#wahlperiode', period.value),
     ]);
   }
 
@@ -210,15 +212,23 @@ class Scraper {
 
   async selectOperationTypes() {
     const operationTypes = await this.takeOperationTypes();
+    const selectedOperationTypes = await this.options.selectOperationTypes({ operationTypes });
+    const ots = selectedOperationTypes.map((n) => {
+      const selection = operationTypes.find(({ number }) => number === n);
+      if (selection) {
+        return selection.value;
+      }
+      return undefined;
+    }).filter(v => v !== undefined);
     await this.browser.page.select(
       'select#includeVorgangstyp',
-      ...(await this.options.selectOperationTypes({ operationTypes })),
+      ...(ots),
     );
   }
 
   async getResultInfos({ browser }) {
     const reg = /Seite (\d*) von (\d*) \(Treffer (\d*) bis (\d*) von (\d*)\)/;
-    await browser.page.waitForSelector('#inhaltsbereich').catch((error) => {
+    await browser.page.waitForSelector('#inhaltsbereich', { timeout: this.options.timeoutSearch() }).catch((error) => {
       this.fatalError({ error });
     });
     const resultsNumberString = await browser.page.evaluate(
@@ -301,11 +311,7 @@ class Scraper {
 
   async saveJson({ link, page }) {
     const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
-    await page.goto(link, {
-      timeout: this.options.timeoutProcedure(),
-    }).catch((error) => {
-      this.fatalError({ error });
-    });
+    await page.goto(link, { timeout: this.options.timeoutProcedure() });
 
     const content = await page.evaluate(
       sel => document.querySelector(sel).innerHTML,
@@ -319,20 +325,14 @@ class Scraper {
     const vorgangId = queryObj.selId;
     if (procedureId.substring(3) !== vorgangId) {
       const error = new Error(`Procedure ID missmatch URL: "${vorgangId}" to HTML: "${procedureId.substring(3)}"`);
-      this.fatalError({ error });
+      throw error;
     }
 
-    const dataProcedure = await Scraper.getProcedureData({ page }).catch((error) => {
-      this.fatalError(error);
-    });
+    const dataProcedure = await Scraper.getProcedureData({ page });
     await page.goto(`${URLS.processRunning}${vorgangId}`, {
       timeout: this.options.timeoutProcedure(),
-    }).catch((error) => {
-      this.fatalError({ error });
     });
-    const dataProcedureRunning = await Scraper.getProcedureRunningData({ page }).catch((error) => {
-      this.fatalError({ error });
-    });
+    const dataProcedureRunning = await Scraper.getProcedureRunningData({ page });
 
     const procedureData = {
       vorgangId,
@@ -363,7 +363,7 @@ class Scraper {
         browser.page.waitForNavigation({
           waitUntil: ['domcontentloaded'],
         }),
-        browser.page.waitForSelector('#footer'),
+        browser.page.waitForSelector('#footer', { timeout: this.options.timeoutSearch() }),
       ]);
     } catch (error) {
       this.options.logError({ error });
