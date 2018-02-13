@@ -15,8 +15,8 @@ const URLS = {
 
 class Scraper {
   defaultOptions = {
-    selectPeriod: () => '',
-    selectOperationTypes: () => [''],
+    selectPeriod: () => 'Alle',
+    selectOperationTypes: () => ['Alle'],
     logStartLinkProgress: () => {},
     logUpdateLinkProgress: () => {},
     logStopLinkProgress: () => {},
