@@ -15,14 +15,16 @@
     "prepublish": "npm run build"
   },
   "dependencies": {
-    "cli-progress": "^1.7.0",
+    "ascii-progress": "^1.0.5",
     "colors": "^1.1.2",
     "commander": "^2.13.0",
     "fs-extra": "^5.0.0",
     "inquirer": "^5.0.1",
     "jsonfile": "^4.0.0",
+    "lodash": "^4.17.5",
     "log": "^1.4.0",
     "node-gyp": "^3.6.2",
+    "pretty-ms": "^3.1.0",
     "puppeteer": "^1.0.0",
     "x2js": "^3.1.1"
   },
@@ -37,6 +39,6 @@
     "eslint": "^4.17.0",
     "eslint-config-airbnb-base": "^12.1.0",
     "eslint-plugin-import": "^2.8.0",
-    "prettier": "^1.10.2"
+    "prettier-eslint": "^8.8.1"
   }
 }
