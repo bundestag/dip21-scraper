@@ -6,6 +6,8 @@ const inquirer = require('inquirer');
 const Progress = require('cli-progress');
 const jsonfile = require('jsonfile');
 const fs = require('fs-extra');
+const ProgressBar = require('ascii-progress');
+const _ = require('lodash');
 // const readline = require('readline');
 
 program
@@ -20,7 +22,19 @@ program
   .parse(process.argv);
 
 const scraper = new Scraper();
-const barLink = new Progress.Bar(
+
+let bar1;
+let bar2;
+let bar3;
+
+const barSearchPages = new Progress.Bar(
+  {
+    format:
+      '[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total}',
+  },
+  Progress.Presets.shades_classic,
+);
+const barSearchInstances = new Progress.Bar(
   {
     format:
       '[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total}',
@@ -35,17 +49,24 @@ const barData = new Progress.Bar(
   Progress.Presets.shades_classic,
 );
 
-const selectPeriod = async ({ periods }) => {
+const selectPeriods = async ({ periods }) => {
   let selectedPeriod = program.period;
   if (!selectedPeriod) {
     const period = await inquirer.prompt({
-      type: 'list',
-      name: 'value',
+      type: 'checkbox',
+      name: 'values',
       message: 'Wähle eine Legislaturperiode',
       choices: periods,
     });
-    selectedPeriod = periods.find(p => p.value === period.value).name;
-    console.log(`Selected Period '${selectedPeriod}'`);
+    selectedPeriod = period.values
+      .map((v) => {
+        const selection = periods.find(({ value }) => value === v);
+        if (selection) {
+          return selection.name;
+        }
+        return undefined;
+      })
+      .filter(v => v !== undefined);
     return selectedPeriod;
   } else if (!periods.find(period => period.name === selectedPeriod)) {
     console.log(`'${selectedPeriod}' is not a valid option for period`);
@@ -83,31 +104,58 @@ const logFinished = async () => {
   console.log('############### FINISH ###############');
 };
 
-const logStartLinkProgress = async ({ sum, value }) => {
+const logStartLinkProgress = async ({ search }) => {
   console.log('Eintragslinks sammeln');
-
-  barLink.start(sum, value);
+  // barSearchPages.start(search.pages.sum, search.pages.completed);
+  // barSearchInstances.start(search.instances.sum, search.instances.completed);
+  bar1 = new ProgressBar({
+    schema: 'filters [:bar] :percent :completed/:sum | :eta | :elapsed sec',
+  });
+  bar2 = new ProgressBar({
+    schema: 'pages [:bar] :percent :completed/:sum | :eta | :elapsed sec',
+  });
 };
 
-const logUpdateLinkProgress = async ({ value }) => {
-  barLink.update(value);
+const logUpdateLinkProgress = async ({ search }) => {
+  // barSearchPages.update(search.pages.completed, {}, search.pages.sum);
+  // barSearchInstances.update(search.instances.completed, {}, search.instances.sum);
+
+  bar1.tick(_.toInteger(search.instances.completed / search.instances.sum * 100 - bar1.current), {
+    completed: search.instances.completed,
+    sum: search.instances.sum,
+  });
+  bar2.tick(_.toInteger(search.pages.completed / search.pages.sum * 100 - bar2.current), {
+    completed: search.pages.completed,
+    sum: search.pages.sum,
+  });
 };
 
 const logStopLinkProgress = async () => {
-  barLink.stop();
+  // barSearchPages.stop();
 };
 
 const logStartDataProgress = async ({ sum, retries, maxRetries }) => {
   console.log('Einträge downloaden');
-  barData.start(sum, 0, { retries, maxRetries });
+  // barData.start(sum, 0, { retries, maxRetries });
+  bar3 = new ProgressBar({
+    schema: 'links [:bar] :percent :current/:total | :eta | :elapsed sec',
+    total: sum,
+  });
 };
 
 const logUpdateDataProgress = async ({ value, retries, maxRetries }) => {
-  barData.update(value, { retries, maxRetries });
+  // barData.update(value, { retries, maxRetries });
+  let tick = 0;
+  if (value > bar3.current) {
+    tick = 1;
+  } else if (value < bar3.current) {
+    tick = -1;
+  }
+  bar3.tick(tick);
 };
 
 const logStopDataProgress = async () => {
-  barData.stop();
+  // barData.stop();
 };
 
 /* const logError = ({ error }) => {
@@ -172,7 +220,7 @@ process.on('uncaughtException', scraper.finalize.bind(scraper));
 */
 scraper
   .scrape({
-    selectPeriod,
+    selectPeriods,
     selectOperationTypes,
     logStartLinkProgress,
     logUpdateLinkProgress,
@@ -185,7 +233,7 @@ scraper
     logFatalError,
     outScraperLinks,
     outScraperData,
-    browserStackSize: () => 7,
+    browserStackSize: 7,
   })
   .catch((error) => {
     console.error(error);
