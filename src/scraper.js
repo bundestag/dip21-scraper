@@ -1,3 +1,5 @@
+/* eslint-disable max-len */
+
 const puppeteer = require('puppeteer');
 const X2JS = require('x2js');
 const Url = require('url');
@@ -129,7 +131,7 @@ class Scraper {
         this.filters[filterIndex].scraped = false;
         this.stack[browserIndex].errors += 1;
         if (this.stack[browserIndex].errors >= 5) {
-          await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then((newBrowser) => { // eslint-disable-line
+          await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then((newBrowser) => {
             this.stack[browserIndex] = newBrowser;
             this.options.logUpdateLinkProgress(this.status);
           });
@@ -163,7 +165,7 @@ class Scraper {
           this.stack[browserIndex].errors += 1;
 
           if (this.stack[browserIndex].errors >= 5) {
-            await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then((newBrowser) => { // eslint-disable-line
+            await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then((newBrowser) => {
               this.stack[browserIndex] = newBrowser;
               this.options.logUpdateDataProgress({
                 value: this.completedLinks,
@@ -236,7 +238,7 @@ class Scraper {
     // Periods
     let selectedPeriods = [];
     if (_.isArray(this.options.selectPeriods)) {
-      ({ options: { selectedPeriods } } = this);
+      selectedPeriods = this.options.selectPeriods;
     } else if (_.isFunction(this.options.selectPeriods)) {
       selectedPeriods = await this.options.selectPeriods({ periods });
     } else {
@@ -250,7 +252,7 @@ class Scraper {
     // OperationTypes
     let selectedOperationTypes = [];
     if (_.isArray(this.options.selectOperationTypes)) {
-      ({ options: { selectedOperationTypes } } = this);
+      selectedOperationTypes = this.options.selectOperationTypes;
     } else if (_.isFunction(this.options.selectOperationTypes)) {
       selectedOperationTypes = await this.options.selectOperationTypes({ operationTypes });
     } else {
@@ -300,7 +302,7 @@ class Scraper {
   }
 
   async selectOperationTypes({ browser, operationTypeNumber }) {
-    const operationType = this.availableFilters.operationTypes.find(o => o.number === operationTypeNumber); // eslint-disable-line
+    const operationType = this.availableFilters.operationTypes.find(o => o.number === operationTypeNumber);
     if (!operationType) {
       throw new Error(`OperationType "${operationTypeNumber}" not found`);
     }

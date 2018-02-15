@@ -117,10 +117,6 @@ const logUpdateLinkProgress = async ({ search }) => {
   });
 };
 
-const logStopLinkProgress = async () => {
-  // barSearchPages.stop();
-};
-
 const logStartDataProgress = async ({ sum }) => {
   console.log('Einträge downloaden');
   // barData.start(sum, 0, { retries, maxRetries });
@@ -146,14 +142,6 @@ const logUpdateDataProgress = async ({ value }) => {
     duration: prettyMs(_.toInteger(new Date() - bar3.start), { secDecimalDigits: 0 }),
   });
 };
-
-const logStopDataProgress = async () => {
-  // barData.stop();
-};
-
-/* const logError = ({ error }) => {
-  console.log(error);
-}; */
 
 const outScraperData = async ({ procedureId, procedureData }) => {
   const directory = `files/${procedureData.VORGANG.WAHLPERIODE}/${
@@ -205,12 +193,9 @@ scraper
     selectOperationTypes,
     logStartLinkProgress,
     logUpdateLinkProgress,
-    logStopLinkProgress,
     logStartDataProgress,
     logUpdateDataProgress,
-    logStopDataProgress,
     logFinished,
-    // logError,
     logFatalError,
     outScraperData,
     browserStackSize: 7,
