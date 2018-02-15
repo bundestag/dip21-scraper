@@ -129,11 +129,10 @@ class Scraper {
         this.filters[filterIndex].scraped = false;
         this.stack[browserIndex].errors += 1;
         if (this.stack[browserIndex].errors >= 5) {
-          await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
-            .then((newBrowser) => {
-              this.stack[browserIndex] = newBrowser;
-              this.options.logUpdateLinkProgress(this.status);
-            });
+          await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then((newBrowser) => { // eslint-disable-line
+            this.stack[browserIndex] = newBrowser;
+            this.options.logUpdateLinkProgress(this.status);
+          });
         }
       }
       await this.getProceduresFromSearch({ browser, browserIndex });
@@ -164,15 +163,14 @@ class Scraper {
           this.stack[browserIndex].errors += 1;
 
           if (this.stack[browserIndex].errors >= 5) {
-            await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
-              .then((newBrowser) => {
-                this.stack[browserIndex] = newBrowser;
-                this.options.logUpdateDataProgress({
-                  value: this.completedLinks,
-                  retries: this.retries,
-                  maxRetries: this.options.maxRetries,
-                });
+            await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then((newBrowser) => { // eslint-disable-line
+              this.stack[browserIndex] = newBrowser;
+              this.options.logUpdateDataProgress({
+                value: this.completedLinks,
+                retries: this.retries,
+                maxRetries: this.options.maxRetries,
               });
+            });
           }
         });
       await this.startAnalyse(browserIndex);
@@ -186,7 +184,7 @@ class Scraper {
       throw new Error(error);
       /* empty block */
     }
-  }
+  };
 
   createBrowserStack = ({ size }) => [...Array(size)].map(this.createNewBrowser);
 
@@ -238,7 +236,7 @@ class Scraper {
     // Periods
     let selectedPeriods = [];
     if (_.isArray(this.options.selectPeriods)) {
-      selectedPeriods = this.options.selectedPeriods;
+      ({ options: { selectedPeriods } } = this);
     } else if (_.isFunction(this.options.selectPeriods)) {
       selectedPeriods = await this.options.selectPeriods({ periods });
     } else {
@@ -252,7 +250,7 @@ class Scraper {
     // OperationTypes
     let selectedOperationTypes = [];
     if (_.isArray(this.options.selectOperationTypes)) {
-      selectedOperationTypes = this.options.selectedOperationTypes;
+      ({ options: { selectedOperationTypes } } = this);
     } else if (_.isFunction(this.options.selectOperationTypes)) {
       selectedOperationTypes = await this.options.selectOperationTypes({ operationTypes });
     } else {
@@ -291,7 +289,7 @@ class Scraper {
       number: o.__text.match(/\d{3}/) ? o.__text.match(/\d{3}/)[0] : 'all',
     }));
     return values;
-  }
+  };
 
   async selectPeriod({ browser, periodName }) {
     const period = this.availableFilters.periods.find(p => p.name === periodName);
@@ -302,7 +300,7 @@ class Scraper {
   }
 
   async selectOperationTypes({ browser, operationTypeNumber }) {
-    const operationType = this.availableFilters.operationTypes.find(o => o.number === operationTypeNumber);
+    const operationType = this.availableFilters.operationTypes.find(o => o.number === operationTypeNumber); // eslint-disable-line
     if (!operationType) {
       throw new Error(`OperationType "${operationTypeNumber}" not found`);
     }
@@ -450,7 +448,7 @@ class Scraper {
 
     let procedureId;
     try {
-      procedureId = content.match(procedureIdRegex)[1];
+      procedureId = content.match(procedureIdRegex)[1]; // eslint-disable-line
     } catch (error) {
       // console.log(link)
       throw new Error(error);
