@@ -5,7 +5,7 @@ const X2JS = require('x2js');
 const Url = require('url');
 const Querystring = require('querystring');
 const _ = require('lodash');
-const colors = require('colors')
+const colors = require('colors');
 
 const x2j = new X2JS();
 
@@ -13,9 +13,9 @@ class Scraper {
   options = {
     selectPeriods: false,
     selectOperationTypes: false,
-    logStartLinkProgress: () => {},
-    logUpdateLinkProgress: () => {},
-    logStopLinkProgress: () => {},
+    logStartSearchProgress: () => {},
+    logUpdateSearchProgress: () => {},
+    logStopSearchProgress: () => {},
     logStartDataProgress: () => {},
     logUpdateDataProgress: () => {},
     logStopDataProgress: () => {},
@@ -68,10 +68,10 @@ class Scraper {
 
     this.availableFilters = await this.takeSearchableValues().catch(() => {
       this.finalize();
-      throw new Error("Bundestag ist DOWN!!!".red);
+      throw new Error('Bundestag ist DOWN!!!'.red);
     });
     const filtersSelected = await this.configureFilter(this.availableFilters);
-    this.options.logStartLinkProgress(this.status);
+    this.options.logStartSearchProgress(this.status);
     await this.collectProcedures(filtersSelected);
 
     // Data
@@ -81,10 +81,13 @@ class Scraper {
       retries: this.retries,
       maxRetries: this.options.maxRetries,
     });
+    this.options.logStopDataProgress();
+
     await Promise.all(this.stack.map(async (browser, browserIndex) => {
       await this.startAnalyse(browserIndex);
     })).then(async () => {
       // Finalize
+      this.options.logStopSearchProgress();
       await this.finalize();
       this.options.logFinished();
     });
@@ -123,7 +126,7 @@ class Scraper {
           .catch(async (error) => {
             this.filters[filterIndex].scraped = false;
           });
-        this.options.logUpdateLinkProgress(this.status);
+        this.options.logUpdateSearchProgress(this.status);
         await this.getProceduresFromSearch({ browser, browserIndex });
       } catch (error) {
         this.filters[filterIndex].scraped = false;
@@ -131,13 +134,13 @@ class Scraper {
         if (this.stack[browserIndex].errors >= 5) {
           await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then((newBrowser) => {
             this.stack[browserIndex] = newBrowser;
-            this.options.logUpdateLinkProgress(this.status);
+            this.options.logUpdateSearchProgress(this.status);
           });
           await this.getProceduresFromSearch({ browser, browserIndex });
         }
       }
     }
-    this.options.logUpdateLinkProgress(this.status);
+    this.options.logUpdateSearchProgress(this.status);
   };
 
   async startAnalyse(browserIndex) {
@@ -148,13 +151,14 @@ class Scraper {
         link: this.procedures[linkIndex].url,
         page: this.stack[browserIndex].page,
       })
-        .then(() => {
+        .then(async () => {
           this.completedLinks += 1;
           this.options.logUpdateDataProgress({
             value: this.completedLinks,
             retries: this.retries,
             maxRetries: this.options.maxRetries,
           });
+          await this.startAnalyse(browserIndex);
         })
         .catch(async (error) => {
           this.options.logError({ error });
@@ -162,26 +166,49 @@ class Scraper {
           this.stack[browserIndex].errors += 1;
 
           if (this.stack[browserIndex].errors >= 5) {
-            await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then((newBrowser) => {
+            await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then(async (newBrowser) => {
               this.stack[browserIndex] = newBrowser;
               this.options.logUpdateDataProgress({
                 value: this.completedLinks,
                 retries: this.retries,
                 maxRetries: this.options.maxRetries,
               });
+              await this.startAnalyse(browserIndex);
             });
           }
         });
-      await this.startAnalyse(browserIndex);
     }
   }
 
-  finalize = () => Promise.all(this.stack.map(async b => {
-    await b.page.close();
-    await b.browser.close();
-  }));;
+  finalize = async () => {
+    await Promise.all(this.stack.map(async (b) => {
+      await b.page.close();
+      await b.browser.close();
+    }));
 
-  createBrowserStack = ({ size }) => [...Array(size)].map(async () => await this.createNewBrowser());
+    this.stack = [];
+    this.availableFilters = {
+      periods: [],
+      operationTypes: [],
+    };
+    this.filters = [];
+    this.procedures = [];
+    this.status = {
+      search: {
+        instances: {
+          sum: 0,
+          completed: 0,
+        },
+        pages: {
+          sum: 0,
+          completed: 0,
+        },
+      },
+    };
+  };
+
+  createBrowserStack = ({ size }) =>
+    [...Array(size)].map(async () => await this.createNewBrowser());
 
   createNewBrowser = async ({ browserObject = {} } = {}) => {
     const { timeoutStart } = this.options;
@@ -393,7 +420,7 @@ class Scraper {
     const resultInfos = await this.getResultInfos({ browser });
     this.status.search.pages.sum += resultInfos.pageSum;
     for (let i = resultInfos.pageCurrent; i <= resultInfos.pageSum; i += 1) {
-      this.options.logUpdateLinkProgress(this.status);
+      this.options.logUpdateSearchProgress(this.status);
 
       const pageLinks = await this.getEntriesFromPage({ browser });
       this.procedures.push(...pageLinks);
