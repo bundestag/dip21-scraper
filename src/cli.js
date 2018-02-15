@@ -8,6 +8,7 @@ const jsonfile = require('jsonfile');
 const fs = require('fs-extra');
 const ProgressBar = require('ascii-progress');
 const _ = require('lodash');
+const prettyMs = require('pretty-ms');
 // const readline = require('readline');
 
 program
@@ -119,7 +120,6 @@ const logStartLinkProgress = async ({ search }) => {
 const logUpdateLinkProgress = async ({ search }) => {
   // barSearchPages.update(search.pages.completed, {}, search.pages.sum);
   // barSearchInstances.update(search.instances.completed, {}, search.instances.sum);
-
   bar1.tick(_.toInteger(search.instances.completed / search.instances.sum * 100 - bar1.current), {
     completed: search.instances.completed,
     sum: search.instances.sum,
@@ -162,25 +162,13 @@ const logStopDataProgress = async () => {
   console.log(error);
 }; */
 
-const outScraperLinks = async ({ links }) => {
-  jsonfile.writeFile(
-    `links-${program.period}-${program.operationtypes}.json`,
-    links,
-    {
-      spaces: 2,
-      EOL: '\r\n',
-    },
-    (/* err */) => {},
-  );
-};
-
-const outScraperData = async ({ procedure, procedureData }) => {
+const outScraperData = async ({ procedureId, procedureData }) => {
   const directory = `files/${procedureData.VORGANG.WAHLPERIODE}/${
     procedureData.VORGANG.VORGANGSTYP
   }`;
   await fs.ensureDir(directory);
   jsonfile.writeFile(
-    `${directory}/${procedure}.json`,
+    `${directory}/${procedureId}.json`,
     procedureData,
     {
       spaces: 2,
@@ -231,9 +219,8 @@ scraper
     logFinished,
     // logError,
     logFatalError,
-    outScraperLinks,
     outScraperData,
-    browserStackSize: 7,
+    browserStackSize: 8,
   })
   .catch((error) => {
     console.error(error);

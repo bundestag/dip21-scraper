@@ -19,7 +19,6 @@ class Scraper {
     logFinished: () => {},
     logError: () => {},
     logFatalError: () => {},
-    outScraperLinks: () => {},
     outScraperData: () => {},
     doScrape: () => true,
     browserStackSize: 1,
@@ -101,33 +100,38 @@ class Scraper {
       this.stack.map(async (browser, browserIndex) => await this.getProceduresFromSearch({browser, browserIndex}))
     )
     this.procedures = _.uniqBy(this.procedures, 'id');
-
-    console.log(this.procedures.length);
-    console.log(this.stack.map(({used}) => used))
-
-    console.log("FINISH")
   }
 
   getProceduresFromSearch = async ({browser, browserIndex}) => {
     const filterIndex = this.filters.findIndex(({scraped}) => !scraped);
     if(filterIndex !== -1) {
       this.filters[filterIndex].scraped = true;
-      await this.goToSearch({browser});
-      await this.selectPeriod({browser, periodName: this.filters[filterIndex].period});
-      await this.selectOperationTypes({browser, operationTypeNumber:this.filters[filterIndex].operationType })
-      await this.startSearch({browser}).then(() => 
-        this.status.search.instances.completed += 1
-      ).catch(async err => {
-          console.log(err);
-          await browser.page.screenshot({path: `screenshoots/${this.filters[filterIndex].period}-${this.filters[filterIndex].operationType}.png`, fullPage: true})
-          this.filters[filterIndex].scraped = false;
-      });
-      // console.log("status", this.status)
-      this.options.logUpdateLinkProgress(this.status)
-      //await browser.page.screenshot({path: `screenshoots/${this.filters[filterIndex].period}-${this.filters[filterIndex].operationType}.png`, fullPage: true})
+      try {
+        await this.goToSearch({browser});
+        await this.selectPeriod({browser, periodName: this.filters[filterIndex].period});
+        await this.selectOperationTypes({browser, operationTypeNumber:this.filters[filterIndex].operationType })
+        await this.startSearch({browser}).then(() => 
+          this.status.search.instances.completed += 1
+        ).catch(async error => {
+            console.log(error);
+            await browser.page.screenshot({path: `screenshoots/${this.filters[filterIndex].period}-${this.filters[filterIndex].operationType}.png`, fullPage: true})
+            this.filters[filterIndex].scraped = false;
+        });
+        this.options.logUpdateLinkProgress(this.status)
+
+      } catch (error) {
+        this.filters[filterIndex].scraped = false;
+        this.stack[browserIndex].errors += 1;
+        if(this.stack[browserIndex].errors >= 5) {
+          await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
+          .then((newBrowser) => {
+            this.stack[browserIndex] = newBrowser;
+            this.options.logUpdateLinkProgress(this.status);
+          });
+        }
+      }
       await this.getProceduresFromSearch({browser, browserIndex})
     }
-    // console.log("status", this.status)
       this.options.logUpdateLinkProgress(this.status)
   }
 
@@ -138,7 +142,6 @@ class Scraper {
       await this.saveJson({ link: this.procedures[linkIndex].url, page: this.stack[browserIndex].page })
         .then(() => {
           this.completedLinks += 1;
-          this.options.outScraperLinks({ links: this.procedures });
           this.options.logUpdateDataProgress({
             value: this.completedLinks,
             retries: this.retries,
@@ -149,6 +152,19 @@ class Scraper {
           console.log(error)
           this.options.logError({ error });
           this.procedures[linkIndex].scraped = false;
+          this.stack[browserIndex].errors += 1;
+
+          if(this.stack[browserIndex].errors >= 5) {
+            await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
+            .then((newBrowser) => {
+              this.stack[browserIndex] = newBrowser;
+              this.options.logUpdateDataProgress({
+                      value: this.completedLinks,
+                      retries: this.retries,
+                      maxRetries: this.options.maxRetries,
+                    });
+            });
+          }
           // await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
           //   .then((newBrowser) => {
           //     this.stack[browserIndex] = newBrowser;
@@ -218,6 +234,7 @@ class Scraper {
         browser,
         page,
         used: false,
+        errors: 0,
       };
     } catch (error) {
       return this.createNewBrowser({ browserObject });
@@ -372,11 +389,11 @@ class Scraper {
       browser.page.click('input#btnSuche'),
       browser.page.waitForSelector('#tabReiter0 > a', { timeout: 3000}),
       browser.page.waitForSelector('#footer'),
-    ]).catch(async err => {
+    ]).catch(async error => {
       if('Es konnte kein Datensatz gefunden werden.' === await browser.page.$eval('#inhaltsbereich > div.inhalt > div.contentBox > fieldset.field.infoField > ul > li', e => e.innerHTML.trim())) {
         hasEntries = false;
       } else {
-        throw new Error(err)
+        throw new Error(error)
       }
     });
     if(!hasEntries || await this.isSingleResult({browser})) {
@@ -389,8 +406,6 @@ class Scraper {
       i <= resultInfos.pageSum;
       i += 1
     ) {
-      
-      // console.log("status", this.status)
       this.options.logUpdateLinkProgress(this.status)
 
       const pageLinks = await this.getEntriesFromPage({browser});
@@ -406,42 +421,6 @@ class Scraper {
       }
     }
   }
-
-  // async search() {
-  //   await this.clickWait({ browser: this.browser, selector: 'input#btnSuche' });
-  //   let links = [];
-  //   const resultInfos = await this.getResultInfos({ browser: this.browser }).catch((error) => {
-  //     this.fatalError(error);
-  //   });
-  //   await this.options.logStartLinkProgress({
-  //     sum: resultInfos.pageSum,
-  //     value: resultInfos.pageCurrent,
-  //   });
-  //   for (
-  //     let i = parseInt(resultInfos.pageCurrent, 10);
-  //     i <= parseInt(resultInfos.pageSum, 10);
-  //     i += 1
-  //   ) {
-  //     const pageLinks = await this.getEntriesFromPage({
-  //       browser: this.browser,
-  //     });
-  //     links = links.concat(pageLinks);
-  //     const curResultInfos = await this.getResultInfos({ browser: this.browser }).catch((error) => {
-  //       this.fatalError(error);
-  //     });
-  //     await this.options.logUpdateLinkProgress({ value: curResultInfos.pageCurrent });
-  //     if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
-  //       await this.clickWait({
-  //         browser: this.browser,
-  //         selector:
-  //           '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input',
-  //       });
-  //     } else {
-  //       this.options.logStopLinkProgress();
-  //     }
-  //   }
-  //   return links;
-  // }
 
   async getEntriesFromPage({ browser }) {
     const links = await browser.page.$$eval(
@@ -469,34 +448,39 @@ class Scraper {
   async saveJson({ link, page }) {
     const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
     await page.goto(link, { timeout: this.options.timeoutProcedure() });
-
-    const content = await page.evaluate(
-      sel => document.querySelector(sel).innerHTML,
-      '#inhaltsbereich',
-    );
+    let content;
+    try {
+      content = await page.evaluate(
+        sel => document.querySelector(sel).innerHTML,
+        '#inhaltsbereich',
+      );
+    } catch (error) {
+      // console.log(link);
+      throw new Error(error);
+    }
 
     let procedureId;
     try {
       procedureId = content.match(procedureIdRegex)[1];
     } catch (error) {
-      console.log(link)
+      // console.log(link)
       throw new Error(error)
     }
 
     const urlObj = Url.parse(link);
     const queryObj = Querystring.parse(urlObj.query);
     const vorgangId = queryObj.selId;
-    if (procedureId.substring(3) !== vorgangId) {
-      const error = new Error(`Procedure ID missmatch URL: "${vorgangId}" to HTML: "${procedureId.substring(3)}"`);
-      throw error;
+    if (procedureId.split("-")[1] !== vorgangId) {
+      const error = new Error(`Procedure ID missmatch URL: "${vorgangId}" to HTML: "${procedureId.split("-")[1]}"`);
+      throw new Error(error);
     }
-
+    
     const dataProcedure = await Scraper.getProcedureData({ page });
     await page.goto(`${this.urls.processRunning}${vorgangId}`, {
       timeout: this.options.timeoutProcedure(),
     });
     const dataProcedureRunning = await Scraper.getProcedureRunningData({ page });
-
+    
     const procedureData = {
       vorgangId,
       ...dataProcedure,
@@ -519,7 +503,7 @@ class Scraper {
       const xmlString = html.match(xmlRegex)[0];
       return x2j.xml2js(xmlString);
     } catch (error) {
-      console.log(await page.url())
+      // console.log(await page.url())
       throw new Error(error)
     }
     
