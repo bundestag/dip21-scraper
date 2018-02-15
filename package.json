@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "ascii-progress": "^1.0.5",
-    "cli-progress": "https://github.com/ReggaePanda/Node.CLI-Progress",
     "colors": "^1.1.2",
     "commander": "^2.13.0",
     "fs-extra": "^5.0.0",

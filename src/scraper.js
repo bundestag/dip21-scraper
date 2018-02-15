@@ -159,7 +159,6 @@ class Scraper {
           });
         })
         .catch(async (error) => {
-          console.log(error);
           this.options.logError({ error });
           this.procedures[linkIndex].scraped = false;
           this.stack[browserIndex].errors += 1;
