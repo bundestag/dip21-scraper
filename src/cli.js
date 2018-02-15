@@ -159,10 +159,6 @@ const outScraperData = async ({ procedureId, procedureData }) => {
   );
 };
 
-const logFatalError = ({ error }) => {
-  console.log(`Fatal: ${error}`);
-};
-
 // HANDLE EXIT
 // so the program will not close instantly
 /* if (process.platform === 'win32') {
@@ -187,6 +183,11 @@ process.on('SIGUSR2', scraper.finalize.bind(scraper));
 // catches uncaught exceptions
 process.on('uncaughtException', scraper.finalize.bind(scraper));
 */
+
+process.on('SIGINT', async () => {
+  process.exit(1);
+});
+
 scraper
   .scrape({
     selectPeriods,
@@ -196,10 +197,9 @@ scraper
     logStartDataProgress,
     logUpdateDataProgress,
     logFinished,
-    logFatalError,
     outScraperData,
     browserStackSize: 7,
   })
   .catch((error) => {
-    console.error(error);
+    // console.error(error);
   });

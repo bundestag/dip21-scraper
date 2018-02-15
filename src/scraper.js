@@ -5,6 +5,7 @@ const X2JS = require('x2js');
 const Url = require('url');
 const Querystring = require('querystring');
 const _ = require('lodash');
+const colors = require('colors')
 
 const x2j = new X2JS();
 
@@ -24,7 +25,7 @@ class Scraper {
     doScrape: () => true,
     browserStackSize: 1,
     timeoutStart: 10001,
-    timeoutSearch: () => 30000,
+    timeoutSearch: () => 5001,
     timeoutProcedure: () => 30000,
     maxRetries: () => 20,
   };
@@ -65,7 +66,10 @@ class Scraper {
       size: browserStackSize,
     }));
 
-    this.availableFilters = await this.takeSearchableValues();
+    this.availableFilters = await this.takeSearchableValues().catch(() => {
+      this.finalize();
+      throw new Error("Bundestag ist DOWN!!!".red);
+    });
     const filtersSelected = await this.configureFilter(this.availableFilters);
     this.options.logStartLinkProgress(this.status);
     await this.collectProcedures(filtersSelected);
@@ -117,16 +121,10 @@ class Scraper {
             this.status.search.instances.completed += 1;
           })
           .catch(async (error) => {
-            console.log(error);
-            await browser.page.screenshot({
-              path: `screenshoots/${this.filters[filterIndex].period}-${
-                this.filters[filterIndex].operationType
-              }.png`,
-              fullPage: true,
-            });
             this.filters[filterIndex].scraped = false;
           });
         this.options.logUpdateLinkProgress(this.status);
+        await this.getProceduresFromSearch({ browser, browserIndex });
       } catch (error) {
         this.filters[filterIndex].scraped = false;
         this.stack[browserIndex].errors += 1;
@@ -135,9 +133,9 @@ class Scraper {
             this.stack[browserIndex] = newBrowser;
             this.options.logUpdateLinkProgress(this.status);
           });
+          await this.getProceduresFromSearch({ browser, browserIndex });
         }
       }
-      await this.getProceduresFromSearch({ browser, browserIndex });
     }
     this.options.logUpdateLinkProgress(this.status);
   };
@@ -178,20 +176,17 @@ class Scraper {
     }
   }
 
-  finalize = async () => {
-    try {
-      await Promise.all(this.stack.map(b => b.browser.close()));
-    } catch (error) {
-      throw new Error(error);
-      /* empty block */
-    }
-  };
+  finalize = () => Promise.all(this.stack.map(async b => {
+    await b.page.close();
+    await b.browser.close();
+  }));;
 
-  createBrowserStack = ({ size }) => [...Array(size)].map(this.createNewBrowser);
+  createBrowserStack = ({ size }) => [...Array(size)].map(async () => await this.createNewBrowser());
 
   createNewBrowser = async ({ browserObject = {} } = {}) => {
     const { timeoutStart } = this.options;
     if (browserObject.browser) {
+      await browserObject.page.close();
       await browserObject.browser.close();
     }
     try {
@@ -221,7 +216,11 @@ class Scraper {
         errors: 0,
       };
     } catch (error) {
-      return this.createNewBrowser({ browserObject });
+      return await new Promise((resolve) => {
+        setTimeout(async () => {
+          resolve(await this.createNewBrowser({ browserObject }));
+        }, 10000);
+      });
     }
   };
 
@@ -328,7 +327,6 @@ class Scraper {
     await browser.page
       .waitForSelector('#footer', { timeout: this.options.timeoutSearch() })
       .catch((error) => {
-        console.log(error);
         throw new Error(error);
       });
     const resultsNumberString = await browser.page.evaluate(
@@ -443,7 +441,6 @@ class Scraper {
         '#inhaltsbereich',
       );
     } catch (error) {
-      // console.log(link);
       throw new Error(error);
     }
 
@@ -451,7 +448,6 @@ class Scraper {
     try {
       procedureId = content.match(procedureIdRegex)[1]; // eslint-disable-line
     } catch (error) {
-      // console.log(link)
       throw new Error(error);
     }
 
@@ -491,7 +487,6 @@ class Scraper {
       const xmlString = html.match(xmlRegex)[0];
       return x2j.xml2js(xmlString);
     } catch (error) {
-      // console.log(await page.url())
       throw new Error(error);
     }
   }
