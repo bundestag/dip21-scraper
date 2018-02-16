@@ -1,0 +1,22 @@
+{
+  "presets": [
+    [
+      "env",
+      {
+        "targets": {
+          "node": "9.5.0"
+        }
+      }
+    ],
+    "stage-3"
+  ],
+  "plugins": [
+    [
+      "transform-class-properties",
+      "transform-object-rest-spread",
+      {
+        "useBuiltIns": true
+      }
+    ]
+  ]
+}

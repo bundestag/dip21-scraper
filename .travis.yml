@@ -1,0 +1,28 @@
+matrix:
+    include:
+        # test
+        -   os: linux
+            language: node_js
+            node_js:
+                - 8
+            install:
+                - yarn --version
+                - yarn install
+            script:
+                - yarn lint
+        # scrape period 19 Laws 100
+        -   if: branch =~ ^master OR branch =~ /^pr\..*/
+            os: linux
+            language: node_js
+            sudo: required
+            addons:
+                chrome: stable
+            node_js:
+                - 8
+            install:
+                - yarn --version
+                - yarn install
+            script:
+                - yarn start --period 19 --operationtypes 100
+after_script:
+  - echo "BUILD FINISHED"
