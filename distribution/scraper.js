@@ -12,6 +12,7 @@ const X2JS = require('x2js');
 const Url = require('url');
 const Querystring = require('querystring');
 const _ = require('lodash');
+const chalk = require('chalk');
 
 const x2j = new X2JS();
 
@@ -399,9 +400,13 @@ class Scraper {
         size: browserStackSize
       }));
 
-      _this2.availableFilters = yield _this2.takeSearchableValues().catch(function () {
+      _this2.availableFilters = yield _this2.takeSearchableValues().catch(function (error) {
         _this2.finalize();
-        throw new Error('Bundestag ist DOWN!!!'.red);
+        throw {
+          error,
+          message: 'Bundestag ist DOWN!!!',
+          type: chalk.red('fatal')
+        };
       });
       const filtersSelected = yield _this2.configureFilter(_this2.availableFilters);
       _this2.options.logStartSearchProgress(_this2.status);

@@ -209,6 +209,9 @@ process.on('SIGINT', async () => {
 });
 
 const logError = ({ error }) => {
+  if (error.type === 'fatal' && error.message) {
+    console.log(error);
+  }
   log(error);
 };
 

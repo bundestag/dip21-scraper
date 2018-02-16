@@ -245,6 +245,9 @@ process.on('SIGINT', _asyncToGenerator(function* () {
 }));
 
 const logError = ({ error }) => {
+  if (error.type === 'fatal' && error.message) {
+    console.log(error);
+  }
   log(error);
 };
 
