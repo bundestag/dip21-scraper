@@ -12,7 +12,7 @@ const prettyMs = require('pretty-ms');
 const chalk = require('chalk');
 const Log = require('log');
 
-const log = new Log('debug', fs.createWriteStream('error.log'));
+const log = new Log('error', fs.createWriteStream('error.log'));
 
 program
   .version('0.1.0')
@@ -212,7 +212,7 @@ const logError = ({ error }) => {
   if (error.type === 'fatal' && error.message) {
     console.log(error);
   }
-  log(error);
+  log.error(error);
 };
 
 scraper

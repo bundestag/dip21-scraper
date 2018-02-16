@@ -16,7 +16,7 @@ const prettyMs = require('pretty-ms');
 const chalk = require('chalk');
 const Log = require('log');
 
-const log = new Log('debug', fs.createWriteStream('error.log'));
+const log = new Log('error', fs.createWriteStream('error.log'));
 
 program.version('0.1.0').description('Bundestag scraper').option('-p, --periods [PeriodenNummers|Alle]', 'comma sperated period numbers', null).option('-t, --operationtypes <OperationTypeNummer|Alle>', 'Select specified OperationTypes [null]', null).option('-s, --stacksize <Integer>', 'size of paralell browsers', 1).option('-q, --quiet', 'Silent Mode - No Outputs').parse(process.argv);
 
@@ -248,7 +248,7 @@ const logError = ({ error }) => {
   if (error.type === 'fatal' && error.message) {
     console.log(error);
   }
-  log(error);
+  log.error(error);
 };
 
 scraper.scrape({
