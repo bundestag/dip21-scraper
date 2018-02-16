@@ -13,9 +13,10 @@ const fs = require('fs-extra');
 const ProgressBar = require('ascii-progress');
 const _ = require('lodash');
 const prettyMs = require('pretty-ms');
+const chalk = require('chalk');
 // const readline = require('readline');
 
-program.version('0.0.1').description('Bundestag scraper').option('-p, --period [PeriodenNummer|Alle]', 'Select a specified period [null]', null).option('-t, --operationtypes <OperationTypeNummer|Alle>', 'Select specified OperationTypes [null]', null).parse(process.argv);
+program.version('0.1.0').description('Bundestag scraper').option('-p, --periods [PeriodenNummers|Alle]', 'comma sperated period numbers', null).option('-t, --operationtypes <OperationTypeNummer|Alle>', 'Select specified OperationTypes [null]', null).option('-s, --stacksize <Integer>', 'size of paralell browsers', 1).parse(process.argv);
 
 const scraper = new Scraper();
 
@@ -104,23 +105,24 @@ const logFinished = (() => {
   };
 })();
 
-const logStartLinkProgress = (() => {
+const logStartSearchProgress = (() => {
   var _ref4 = _asyncToGenerator(function* () {
-    console.log('Eintragslinks sammeln');
     bar1 = new ProgressBar({
-      schema: 'filters [:bar] :percent :completed/:sum | :estf | :duration'
+      schema: 'filters [:bar] :percent :completed/:sum | :estf | :duration',
+      width: 20
     });
     bar2 = new ProgressBar({
-      schema: 'pages [:bar] :percent :completed/:sum | :estf | :duration'
+      schema: 'pages [:bar] :percent :completed/:sum | :estf | :duration',
+      width: 20
     });
   });
 
-  return function logStartLinkProgress() {
+  return function logStartSearchProgress() {
     return _ref4.apply(this, arguments);
   };
 })();
 
-const logUpdateLinkProgress = (() => {
+const logUpdateSearchProgress = (() => {
   var _ref5 = _asyncToGenerator(function* ({ search }) {
     // barSearchPages.update(search.pages.completed, {}, search.pages.sum);
     // barSearchInstances.update(search.instances.completed, {}, search.instances.sum);
@@ -139,17 +141,17 @@ const logUpdateLinkProgress = (() => {
     });
   });
 
-  return function logUpdateLinkProgress(_x3) {
+  return function logUpdateSearchProgress(_x3) {
     return _ref5.apply(this, arguments);
   };
 })();
 
 const logStartDataProgress = (() => {
   var _ref6 = _asyncToGenerator(function* ({ sum }) {
-    console.log('Einträge downloaden');
+    console.log('links analysieren');
     // barData.start(sum, 0, { retries, maxRetries });
     bar3 = new ProgressBar({
-      schema: 'links [:bar] :percent :current/:total | :estf | :duration',
+      schema: 'links | :cpercent | :current/:total | :estf | :duration | :browsersRunning | :browsersScraped | :browserErrors ',
       total: sum
     });
   });
@@ -159,8 +161,13 @@ const logStartDataProgress = (() => {
   };
 })();
 
+function getColor(value) {
+  // value from 0 to 1
+  return (1 - value) * 120;
+}
+
 const logUpdateDataProgress = (() => {
-  var _ref7 = _asyncToGenerator(function* ({ value }) {
+  var _ref7 = _asyncToGenerator(function* ({ value, browsers }) {
     // barData.update(value, { retries, maxRetries });
     let tick = 0;
     if (value > bar3.current) {
@@ -169,8 +176,23 @@ const logUpdateDataProgress = (() => {
       tick = -1;
     }
     bar3.tick(tick, {
-      estf: prettyMs(_.toInteger((new Date() - bar3.start) / bar3.current * (bar3.total - bar3.current)), { compact: true }),
-      duration: prettyMs(_.toInteger(new Date() - bar3.start), { secDecimalDigits: 0 })
+      estf: chalk.hsl(getColor(1 - bar3.current / bar3.total), 100, 50)(prettyMs(_.toInteger((new Date() - bar3.start) / bar3.current * (bar3.total - bar3.current)), { compact: true })),
+      duration: prettyMs(_.toInteger(new Date() - bar3.start), { secDecimalDigits: 0 }),
+      browserErrors: browsers.map(function ({ errors }) {
+        return chalk.hsl(getColor(errors / 5), 100, 50)(errors);
+      }),
+      browsersRunning: browsers.reduce(function (count, { used }) {
+        return count + (used ? 1 : 0);
+      }, 0),
+      browsersScraped: browsers.map(function ({ scraped }) {
+        if (_.minBy(browsers, 'scraped').scraped === scraped) {
+          return chalk.red(scraped);
+        } else if (_.maxBy(browsers, 'scraped').scraped === scraped) {
+          return chalk.green(scraped);
+        }
+        return scraped;
+      }),
+      cpercent: chalk.hsl(getColor(1 - bar3.current / bar3.total), 100, 50)(`${(bar3.current / bar3.total * 100).toFixed(1)}%`)
     });
   });
 
@@ -193,10 +215,6 @@ const outScraperData = (() => {
     return _ref8.apply(this, arguments);
   };
 })();
-
-const logFatalError = ({ error }) => {
-  console.log(`Fatal: ${error}`);
-};
 
 // HANDLE EXIT
 // so the program will not close instantly
@@ -222,17 +240,37 @@ process.on('SIGUSR2', scraper.finalize.bind(scraper));
 // catches uncaught exceptions
 process.on('uncaughtException', scraper.finalize.bind(scraper));
 */
+
+process.on('SIGINT', _asyncToGenerator(function* () {
+  process.exit(1);
+}));
+
+const logError = ({ error }) => {
+  switch (error.type) {
+    case 'timeout':
+    case 'not found':
+    case 'warning':
+      if (error.function !== 'saveJson' && error.function !== 'getProcedureRunningData') {
+        console.log(error);
+      }
+      break;
+    default:
+      console.log(error);
+      break;
+  }
+};
+
 scraper.scrape({
   selectPeriods,
   selectOperationTypes,
-  logStartLinkProgress,
-  logUpdateLinkProgress,
+  logStartSearchProgress,
+  logUpdateSearchProgress,
   logStartDataProgress,
   logUpdateDataProgress,
   logFinished,
-  logFatalError,
   outScraperData,
-  browserStackSize: 7
+  browserStackSize: _.toInteger(program.stacksize),
+  logError
 }).catch(error => {
   console.error(error);
 });
