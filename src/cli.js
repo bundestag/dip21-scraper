@@ -22,6 +22,7 @@ program
     null,
   )
   .option('-s, --stacksize <Integer>', 'size of paralell browsers', 1)
+  .option('-q, --quiet', 'Silent Mode - No Outputs')
   .parse(process.argv);
 
 const scraper = new Scraper();
@@ -224,14 +225,14 @@ scraper
   .scrape({
     selectPeriods,
     selectOperationTypes,
-    // logStartSearchProgress,
-    // logUpdateSearchProgress,
-    // logStartDataProgress,
-    // logUpdateDataProgress,
-    logFinished,
+    logStartSearchProgress: program.quiet ? () => {} : logStartSearchProgress,
+    logUpdateSearchProgress: program.quiet ? () => {} : logUpdateSearchProgress,
+    logStartDataProgress: program.quiet ? () => {} : logStartDataProgress,
+    logUpdateDataProgress: program.quiet ? () => {} : logUpdateDataProgress,
+    logFinished: program.quiet ? () => {} : logFinished,
     outScraperData,
     browserStackSize: _.toInteger(program.stacksize),
-    logError,
+    logError: program.quiet ? () => {} : logError,
   })
   .catch((error) => {
     console.error(error);
