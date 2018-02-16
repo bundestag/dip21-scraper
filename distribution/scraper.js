@@ -470,7 +470,8 @@ class Scraper {
                   _this3.options.logUpdateDataProgress({
                     value: _this3.completedLinks,
                     retries: _this3.retries,
-                    maxRetries: _this3.options.maxRetries
+                    maxRetries: _this3.options.maxRetries,
+                    browsers: _this3.stack
                   });
                 });
 
