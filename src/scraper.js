@@ -180,6 +180,7 @@ class Scraper {
                 value: this.completedLinks,
                 retries: this.retries,
                 maxRetries: this.options.maxRetries,
+                browsers: this.stack,
               });
             });
           }

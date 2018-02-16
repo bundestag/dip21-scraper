@@ -97,9 +97,6 @@ const logStartSearchProgress = async () => {
 };
 
 const logUpdateSearchProgress = async ({ search }) => {
-  // barSearchPages.update(search.pages.completed, {}, search.pages.sum);
-  // barSearchInstances.update(search.instances.completed, {}, search.instances.sum);
-
   bar1.tick(_.toInteger(search.instances.completed / search.instances.sum * 100 - bar1.current), {
     completed: search.instances.completed,
     sum: search.instances.sum,
@@ -122,7 +119,6 @@ const logUpdateSearchProgress = async ({ search }) => {
 
 const logStartDataProgress = async ({ sum }) => {
   console.log('links analysieren');
-  // barData.start(sum, 0, { retries, maxRetries });
   bar3 = new ProgressBar({
     schema:
       'links | :cpercent | :current/:total | :estf | :duration | :browsersRunning | :browsersScraped | :browserErrors ',
@@ -152,10 +148,10 @@ const logUpdateDataProgress = async ({ value, browsers }) => {
     browserErrors: browsers.map(({ errors }) => chalk.hsl(getColor(errors / 5), 100, 50)(errors)),
     browsersRunning: browsers.reduce((count, { used }) => count + (used ? 1 : 0), 0),
     browsersScraped: browsers.map(({ scraped }) => {
-      if (_.minBy(browsers, 'scraped').scraped === scraped) {
-        return chalk.red(scraped);
-      } else if (_.maxBy(browsers, 'scraped').scraped === scraped) {
+      if (_.maxBy(browsers, 'scraped').scraped === scraped) {
         return chalk.green(scraped);
+      } else if (_.minBy(browsers, 'scraped').scraped === scraped) {
+        return chalk.red(scraped);
       }
       return scraped;
     }),
