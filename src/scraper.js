@@ -268,12 +268,6 @@ class Scraper {
 
   async goToSearch({ browser }) {
     const cookies = await browser.page.cookies().catch((error) => {
-      this.options.logError({
-        error: {
-          error,
-          function: 'goToSearch',
-        },
-      });
       throw {
         error,
         function: 'goToSearch',

@@ -14,7 +14,9 @@ const ProgressBar = require('ascii-progress');
 const _ = require('lodash');
 const prettyMs = require('pretty-ms');
 const chalk = require('chalk');
-// const readline = require('readline');
+const Log = require('log');
+
+const log = new Log('debug', fs.createWriteStream('error.log'));
 
 program.version('0.1.0').description('Bundestag scraper').option('-p, --periods [PeriodenNummers|Alle]', 'comma sperated period numbers', null).option('-t, --operationtypes <OperationTypeNummer|Alle>', 'Select specified OperationTypes [null]', null).option('-s, --stacksize <Integer>', 'size of paralell browsers', 1).option('-q, --quiet', 'Silent Mode - No Outputs').parse(process.argv);
 
@@ -243,18 +245,7 @@ process.on('SIGINT', _asyncToGenerator(function* () {
 }));
 
 const logError = ({ error }) => {
-  switch (error.type) {
-    case 'timeout':
-    case 'not found':
-    case 'warning':
-      if (error.function !== 'saveJson' && error.function !== 'getProcedureRunningData') {
-        console.log(error);
-      }
-      break;
-    default:
-      console.log(error);
-      break;
-  }
+  log(error);
 };
 
 scraper.scrape({

@@ -497,12 +497,6 @@ class Scraper {
 
     return _asyncToGenerator(function* () {
       const cookies = yield browser.page.cookies().catch(function (error) {
-        _this4.options.logError({
-          error: {
-            error,
-            function: 'goToSearch'
-          }
-        });
         throw {
           error,
           function: 'goToSearch'
