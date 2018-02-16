@@ -26,7 +26,7 @@ let bar3;
 
 const selectPeriods = (() => {
   var _ref = _asyncToGenerator(function* ({ periods }) {
-    let selectedPeriod = program.period;
+    let selectedPeriod = program.periods;
     if (!selectedPeriod) {
       const period = yield inquirer.prompt({
         type: 'checkbox',

@@ -31,7 +31,7 @@ let bar2;
 let bar3;
 
 const selectPeriods = async ({ periods }) => {
-  let selectedPeriod = program.period;
+  let selectedPeriod = program.periods;
   if (!selectedPeriod) {
     const period = await inquirer.prompt({
       type: 'checkbox',
