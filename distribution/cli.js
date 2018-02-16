@@ -16,7 +16,7 @@ const prettyMs = require('pretty-ms');
 const chalk = require('chalk');
 // const readline = require('readline');
 
-program.version('0.1.0').description('Bundestag scraper').option('-p, --periods [PeriodenNummers|Alle]', 'comma sperated period numbers', null).option('-t, --operationtypes <OperationTypeNummer|Alle>', 'Select specified OperationTypes [null]', null).option('-s, --stacksize <Integer>', 'size of paralell browsers', 1).parse(process.argv);
+program.version('0.1.0').description('Bundestag scraper').option('-p, --periods [PeriodenNummers|Alle]', 'comma sperated period numbers', null).option('-t, --operationtypes <OperationTypeNummer|Alle>', 'Select specified OperationTypes [null]', null).option('-s, --stacksize <Integer>', 'size of paralell browsers', 1).option('-q, --quiet', 'Silent Mode - No Outputs').parse(process.argv);
 
 const scraper = new Scraper();
 
@@ -260,14 +260,14 @@ const logError = ({ error }) => {
 scraper.scrape({
   selectPeriods,
   selectOperationTypes,
-  logStartSearchProgress,
-  logUpdateSearchProgress,
-  logStartDataProgress,
-  logUpdateDataProgress,
-  logFinished,
+  logStartSearchProgress: program.quiet ? () => {} : logStartSearchProgress,
+  logUpdateSearchProgress: program.quiet ? () => {} : logUpdateSearchProgress,
+  logStartDataProgress: program.quiet ? () => {} : logStartDataProgress,
+  logUpdateDataProgress: program.quiet ? () => {} : logUpdateDataProgress,
+  logFinished: program.quiet ? () => {} : logFinished,
   outScraperData,
   browserStackSize: _.toInteger(program.stacksize),
-  logError
+  logError: program.quiet ? () => {} : logError
 }).catch(error => {
   console.error(error);
 });

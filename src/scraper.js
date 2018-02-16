@@ -185,7 +185,7 @@ class Scraper {
             });
           }
         })
-        .finally(async () => {
+        .then(async () => {
           await this.startAnalyse(browserIndex);
         });
     }

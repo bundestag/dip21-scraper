@@ -485,7 +485,7 @@ class Scraper {
           return function (_x12) {
             return _ref18.apply(this, arguments);
           };
-        })()).finally(_asyncToGenerator(function* () {
+        })()).then(_asyncToGenerator(function* () {
           yield _this3.startAnalyse(browserIndex);
         }));
       }
