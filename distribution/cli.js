@@ -14,9 +14,11 @@ const ProgressBar = require('ascii-progress');
 const _ = require('lodash');
 const prettyMs = require('pretty-ms');
 const chalk = require('chalk');
-// const readline = require('readline');
+const Log = require('log');
 
-program.version('0.1.0').description('Bundestag scraper').option('-p, --periods [PeriodenNummers|Alle]', 'comma sperated period numbers', null).option('-t, --operationtypes <OperationTypeNummer|Alle>', 'Select specified OperationTypes [null]', null).option('-s, --stacksize <Integer>', 'size of paralell browsers', 1).parse(process.argv);
+const log = new Log('error', fs.createWriteStream('error.log'));
+
+program.version('0.1.0').description('Bundestag scraper').option('-p, --periods [PeriodenNummers|Alle]', 'comma sperated period numbers', null).option('-t, --operationtypes <OperationTypeNummer|Alle>', 'Select specified OperationTypes [null]', null).option('-s, --stacksize <Integer>', 'size of paralell browsers', 1).option('-q, --quiet', 'Silent Mode - No Outputs').parse(process.argv);
 
 const scraper = new Scraper();
 
@@ -243,31 +245,23 @@ process.on('SIGINT', _asyncToGenerator(function* () {
 }));
 
 const logError = ({ error }) => {
-  switch (error.type) {
-    case 'timeout':
-    case 'not found':
-    case 'warning':
-      if (error.function !== 'saveJson' && error.function !== 'getProcedureRunningData') {
-        console.log(error);
-      }
-      break;
-    default:
-      console.log(error);
-      break;
+  if (error.type === 'fatal' && error.message) {
+    console.log(error);
   }
+  log.error(error);
 };
 
 scraper.scrape({
   selectPeriods,
   selectOperationTypes,
-  logStartSearchProgress,
-  logUpdateSearchProgress,
-  logStartDataProgress,
-  logUpdateDataProgress,
-  logFinished,
+  logStartSearchProgress: program.quiet ? () => {} : logStartSearchProgress,
+  logUpdateSearchProgress: program.quiet ? () => {} : logUpdateSearchProgress,
+  logStartDataProgress: program.quiet ? () => {} : logStartDataProgress,
+  logUpdateDataProgress: program.quiet ? () => {} : logUpdateDataProgress,
+  logFinished: program.quiet ? () => {} : logFinished,
   outScraperData,
   browserStackSize: _.toInteger(program.stacksize),
-  logError
+  logError: program.quiet ? () => {} : logError
 }).catch(error => {
   console.error(error);
 });

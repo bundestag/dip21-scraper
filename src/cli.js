@@ -10,7 +10,9 @@ const ProgressBar = require('ascii-progress');
 const _ = require('lodash');
 const prettyMs = require('pretty-ms');
 const chalk = require('chalk');
-// const readline = require('readline');
+const Log = require('log');
+
+const log = new Log('error', fs.createWriteStream('error.log'));
 
 program
   .version('0.1.0')
@@ -207,18 +209,10 @@ process.on('SIGINT', async () => {
 });
 
 const logError = ({ error }) => {
-  switch (error.type) {
-    case 'timeout':
-    case 'not found':
-    case 'warning':
-      if (error.function !== 'saveJson' && error.function !== 'getProcedureRunningData') {
-        console.log(error);
-      }
-      break;
-    default:
-      console.log(error);
-      break;
+  if (error.type === 'fatal' && error.message) {
+    console.log(error);
   }
+  log.error(error);
 };
 
 scraper

@@ -6,6 +6,7 @@ const X2JS = require('x2js');
 const Url = require('url');
 const Querystring = require('querystring');
 const _ = require('lodash');
+const chalk = require('chalk');
 
 const x2j = new X2JS();
 
@@ -68,9 +69,13 @@ class Scraper {
       size: browserStackSize,
     }));
 
-    this.availableFilters = await this.takeSearchableValues().catch(() => {
+    this.availableFilters = await this.takeSearchableValues().catch((error) => {
       this.finalize();
-      throw new Error('Bundestag ist DOWN!!!'.red);
+      throw {
+        error,
+        message: 'Bundestag ist DOWN!!!',
+        type: chalk.red('fatal'),
+      };
     });
     const filtersSelected = await this.configureFilter(this.availableFilters);
     this.options.logStartSearchProgress(this.status);
@@ -185,7 +190,7 @@ class Scraper {
             });
           }
         })
-        .finally(async () => {
+        .then(async () => {
           await this.startAnalyse(browserIndex);
         });
     }
@@ -268,12 +273,6 @@ class Scraper {
 
   async goToSearch({ browser }) {
     const cookies = await browser.page.cookies().catch((error) => {
-      this.options.logError({
-        error: {
-          error,
-          function: 'goToSearch',
-        },
-      });
       throw {
         error,
         function: 'goToSearch',
