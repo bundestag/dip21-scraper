@@ -5,9 +5,10 @@ const X2JS = require('x2js');
 const Url = require('url');
 const Querystring = require('querystring');
 const _ = require('lodash');
-const colors = require('colors');
 
 const x2j = new X2JS();
+
+process.setMaxListeners(Infinity)
 
 class Scraper {
   options = {
@@ -26,8 +27,8 @@ class Scraper {
     browserStackSize: 1,
     timeoutStart: 10001,
     timeoutSearch: () => 5001,
-    timeoutProcedure: () => 30000,
     maxRetries: () => 20,
+    defaultTimeout: 15000
   };
 
   urls = {
@@ -125,10 +126,11 @@ class Scraper {
           })
           .catch(async (error) => {
             this.filters[filterIndex].scraped = false;
+            throw error;
           });
         this.options.logUpdateSearchProgress(this.status);
-        await this.getProceduresFromSearch({ browser, browserIndex });
       } catch (error) {
+        this.options.logError({error});
         this.filters[filterIndex].scraped = false;
         this.stack[browserIndex].errors += 1;
         if (this.stack[browserIndex].errors >= 5) {
@@ -136,8 +138,9 @@ class Scraper {
             this.stack[browserIndex] = newBrowser;
             this.options.logUpdateSearchProgress(this.status);
           });
-          await this.getProceduresFromSearch({ browser, browserIndex });
         }
+      } finally {
+        await this.getProceduresFromSearch({ browser, browserIndex });
       }
     }
     this.options.logUpdateSearchProgress(this.status);
@@ -146,6 +149,7 @@ class Scraper {
   async startAnalyse(browserIndex) {
     const linkIndex = this.procedures.findIndex(({ scraped }) => !scraped);
     if (linkIndex !== -1) {
+      this.stack[browserIndex].used = true;
       this.procedures[linkIndex].scraped = true;
       await this.saveJson({
         link: this.procedures[linkIndex].url,
@@ -157,12 +161,15 @@ class Scraper {
             value: this.completedLinks,
             retries: this.retries,
             maxRetries: this.options.maxRetries,
+            browsers: this.stack,
           });
-          await this.startAnalyse(browserIndex);
+          this.stack[browserIndex].used = false;
+          this.stack[browserIndex].scraped += 1;
         })
         .catch(async (error) => {
           this.options.logError({ error });
           this.procedures[linkIndex].scraped = false;
+          this.stack[browserIndex].used = false;
           this.stack[browserIndex].errors += 1;
 
           if (this.stack[browserIndex].errors >= 5) {
@@ -173,10 +180,11 @@ class Scraper {
                 retries: this.retries,
                 maxRetries: this.options.maxRetries,
               });
-              await this.startAnalyse(browserIndex);
             });
           }
-        });
+        }).finally(async () => {
+          await this.startAnalyse(browserIndex);
+        } ) ;
     }
   }
 
@@ -217,7 +225,7 @@ class Scraper {
       await browserObject.browser.close();
     }
     try {
-      const browser = await puppeteer.launch();
+      const browser = await puppeteer.launch({ timeout: this.options.defaultTimeout });
       const page = await browser.newPage();
       await page.setRequestInterception(true);
       page.on('request', (request) => {
@@ -240,9 +248,14 @@ class Scraper {
         browser,
         page,
         used: false,
+        scraped: 0,
         errors: 0,
       };
     } catch (error) {
+      this.options.logError({
+        error,
+        function: 'createNewBrowser'
+      });
       return await new Promise((resolve) => {
         setTimeout(async () => {
           resolve(await this.createNewBrowser({ browserObject }));
@@ -252,7 +265,16 @@ class Scraper {
   };
 
   async goToSearch({ browser }) {
-    const cookies = await browser.page.cookies();
+    const cookies = await browser.page.cookies().catch(error => {
+      this.options.logError({error: {
+        error,
+        function: 'goToSearch',
+      }})
+      throw {
+        error,
+        function: 'goToSearch'
+      }
+    } );
     const jssessionCookie = cookies.filter(c => c.name === 'JSESSIONID');
     await browser.page.goto(this.urls.search + jssessionCookie[0].value, {
       timeout: this.options.timeoutSearch(),
@@ -411,7 +433,7 @@ class Scraper {
       ) {
         hasEntries = false;
       } else {
-        throw new Error(error);
+        throw error;
       }
     });
     if (!hasEntries || (await this.isSingleResult({ browser }))) {
@@ -419,19 +441,30 @@ class Scraper {
     }
     const resultInfos = await this.getResultInfos({ browser });
     this.status.search.pages.sum += resultInfos.pageSum;
+    let pagesCompleted = 0;
     for (let i = resultInfos.pageCurrent; i <= resultInfos.pageSum; i += 1) {
-      this.options.logUpdateSearchProgress(this.status);
-
-      const pageLinks = await this.getEntriesFromPage({ browser });
-      this.procedures.push(...pageLinks);
-      const curResultInfos = await this.getResultInfos({ browser });
-      this.status.search.pages.completed += 1;
-      if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
-        await this.clickWait({
-          browser,
-          selector:
-            '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input',
-        });
+      try {
+        const pageLinks = await this.getEntriesFromPage({ browser });
+        this.procedures.push(...pageLinks);
+        const curResultInfos = await this.getResultInfos({ browser });
+        this.status.search.pages.completed += 1;
+        pagesCompleted += 1;
+        this.options.logUpdateSearchProgress(this.status);
+        if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
+          await this.clickWait({
+            browser,
+            selector:
+              '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input',
+          });
+        }
+      } catch (error) {
+        this.status.search.pages.sum -= resultInfos.pageSum;
+        this.status.search.pages.completed -= pagesCompleted;
+        throw {
+          error,
+          function: 'startSearch',
+          type: 'timeout',
+        };
       }
     }
   };
@@ -460,7 +493,14 @@ class Scraper {
 
   async saveJson({ link, page }) {
     const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
-    await page.goto(link, { timeout: this.options.timeoutProcedure() });
+    await page.goto(link).catch((error) => {
+      throw {
+        error,
+        type: 'timeout',
+        url: link,
+        function: 'saveJson',
+      };
+    });
     let content;
     try {
       content = await page.evaluate(
@@ -468,7 +508,12 @@ class Scraper {
         '#inhaltsbereich',
       );
     } catch (error) {
-      throw new Error(error);
+      throw {
+        error,
+        type: 'not found',
+        url: link,
+        function: 'saveJson'
+      };
     }
 
     let procedureId;
@@ -487,8 +532,13 @@ class Scraper {
     }
 
     const dataProcedure = await Scraper.getProcedureData({ page });
-    await page.goto(`${this.urls.processRunning}${vorgangId}`, {
-      timeout: this.options.timeoutProcedure(),
+    await page.goto(`${this.urls.processRunning}${vorgangId}`).catch((error) => {
+      throw {
+        error,
+        type: 'timeout',
+        url: link,
+        function: 'saveJson',
+      };
     });
     const dataProcedureRunning = await Scraper.getProcedureRunningData({ page });
 
@@ -514,7 +564,12 @@ class Scraper {
       const xmlString = html.match(xmlRegex)[0];
       return x2j.xml2js(xmlString);
     } catch (error) {
-      throw new Error(error);
+      throw {
+        type: 'warning',
+        url: await page.url(),
+        error,
+        function: 'getProcedureRunningData'
+      };
     }
   }
 
