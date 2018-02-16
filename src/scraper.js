@@ -1,4 +1,5 @@
 /* eslint-disable max-len */
+/* eslint-disable no-throw-literal */
 
 const puppeteer = require('puppeteer');
 const X2JS = require('x2js');
@@ -8,13 +9,15 @@ const _ = require('lodash');
 
 const x2j = new X2JS();
 
+process.setMaxListeners(Infinity);
+
 class Scraper {
   options = {
     selectPeriods: false,
     selectOperationTypes: false,
-    logStartLinkProgress: () => {},
-    logUpdateLinkProgress: () => {},
-    logStopLinkProgress: () => {},
+    logStartSearchProgress: () => {},
+    logUpdateSearchProgress: () => {},
+    logStopSearchProgress: () => {},
     logStartDataProgress: () => {},
     logUpdateDataProgress: () => {},
     logStopDataProgress: () => {},
@@ -24,9 +27,9 @@ class Scraper {
     doScrape: () => true,
     browserStackSize: 1,
     timeoutStart: 10001,
-    timeoutSearch: () => 30000,
-    timeoutProcedure: () => 30000,
+    timeoutSearch: () => 5001,
     maxRetries: () => 20,
+    defaultTimeout: 15000,
   };
 
   urls = {
@@ -65,9 +68,12 @@ class Scraper {
       size: browserStackSize,
     }));
 
-    this.availableFilters = await this.takeSearchableValues();
+    this.availableFilters = await this.takeSearchableValues().catch(() => {
+      this.finalize();
+      throw new Error('Bundestag ist DOWN!!!'.red);
+    });
     const filtersSelected = await this.configureFilter(this.availableFilters);
-    this.options.logStartLinkProgress(this.status);
+    this.options.logStartSearchProgress(this.status);
     await this.collectProcedures(filtersSelected);
 
     // Data
@@ -77,10 +83,13 @@ class Scraper {
       retries: this.retries,
       maxRetries: this.options.maxRetries,
     });
+    this.options.logStopDataProgress();
+
     await Promise.all(this.stack.map(async (browser, browserIndex) => {
       await this.startAnalyse(browserIndex);
     })).then(async () => {
       // Finalize
+      this.options.logStopSearchProgress();
       await this.finalize();
       this.options.logFinished();
     });
@@ -117,85 +126,108 @@ class Scraper {
             this.status.search.instances.completed += 1;
           })
           .catch(async (error) => {
-            console.log(error);
-            await browser.page.screenshot({
-              path: `screenshoots/${this.filters[filterIndex].period}-${
-                this.filters[filterIndex].operationType
-              }.png`,
-              fullPage: true,
-            });
             this.filters[filterIndex].scraped = false;
+            throw error;
           });
-        this.options.logUpdateLinkProgress(this.status);
+        this.options.logUpdateSearchProgress(this.status);
       } catch (error) {
+        this.options.logError({ error });
         this.filters[filterIndex].scraped = false;
         this.stack[browserIndex].errors += 1;
         if (this.stack[browserIndex].errors >= 5) {
           await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then((newBrowser) => {
             this.stack[browserIndex] = newBrowser;
-            this.options.logUpdateLinkProgress(this.status);
+            this.options.logUpdateSearchProgress(this.status);
           });
         }
+      } finally {
+        await this.getProceduresFromSearch({ browser, browserIndex });
       }
-      await this.getProceduresFromSearch({ browser, browserIndex });
     }
-    this.options.logUpdateLinkProgress(this.status);
+    this.options.logUpdateSearchProgress(this.status);
   };
 
   async startAnalyse(browserIndex) {
     const linkIndex = this.procedures.findIndex(({ scraped }) => !scraped);
     if (linkIndex !== -1) {
+      this.stack[browserIndex].used = true;
       this.procedures[linkIndex].scraped = true;
       await this.saveJson({
         link: this.procedures[linkIndex].url,
         page: this.stack[browserIndex].page,
       })
-        .then(() => {
+        .then(async () => {
           this.completedLinks += 1;
           this.options.logUpdateDataProgress({
             value: this.completedLinks,
             retries: this.retries,
             maxRetries: this.options.maxRetries,
+            browsers: this.stack,
           });
+          this.stack[browserIndex].used = false;
+          this.stack[browserIndex].scraped += 1;
         })
         .catch(async (error) => {
           this.options.logError({ error });
           this.procedures[linkIndex].scraped = false;
+          this.stack[browserIndex].used = false;
           this.stack[browserIndex].errors += 1;
 
           if (this.stack[browserIndex].errors >= 5) {
-            await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then((newBrowser) => {
+            await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then(async (newBrowser) => {
               this.stack[browserIndex] = newBrowser;
               this.options.logUpdateDataProgress({
                 value: this.completedLinks,
                 retries: this.retries,
                 maxRetries: this.options.maxRetries,
+                browsers: this.stack,
               });
             });
           }
+        })
+        .finally(async () => {
+          await this.startAnalyse(browserIndex);
         });
-      await this.startAnalyse(browserIndex);
     }
   }
 
   finalize = async () => {
-    try {
-      await Promise.all(this.stack.map(b => b.browser.close()));
-    } catch (error) {
-      throw new Error(error);
-      /* empty block */
-    }
+    await Promise.all(this.stack.map(async (b) => {
+      await b.page.close();
+      await b.browser.close();
+    }));
+
+    this.stack = [];
+    this.availableFilters = {
+      periods: [],
+      operationTypes: [],
+    };
+    this.filters = [];
+    this.procedures = [];
+    this.status = {
+      search: {
+        instances: {
+          sum: 0,
+          completed: 0,
+        },
+        pages: {
+          sum: 0,
+          completed: 0,
+        },
+      },
+    };
   };
 
-  createBrowserStack = ({ size }) => [...Array(size)].map(this.createNewBrowser);
+  createBrowserStack = ({ size }) => [...Array(size)].map(async () => this.createNewBrowser());
 
   createNewBrowser = async ({ browserObject = {} } = {}) => {
     const { timeoutStart } = this.options;
     if (browserObject.browser) {
+      await browserObject.page.close();
       await browserObject.browser.close();
     }
     try {
-      const browser = await puppeteer.launch();
+      const browser = await puppeteer.launch({ timeout: this.options.defaultTimeout });
       const page = await browser.newPage();
       await page.setRequestInterception(true);
       page.on('request', (request) => {
@@ -218,15 +250,35 @@ class Scraper {
         browser,
         page,
         used: false,
+        scraped: 0,
         errors: 0,
       };
     } catch (error) {
-      return this.createNewBrowser({ browserObject });
+      this.options.logError({
+        error,
+        function: 'createNewBrowser',
+      });
+      return new Promise((resolve) => {
+        setTimeout(async () => {
+          resolve(await this.createNewBrowser({ browserObject }));
+        }, 10000);
+      });
     }
   };
 
   async goToSearch({ browser }) {
-    const cookies = await browser.page.cookies();
+    const cookies = await browser.page.cookies().catch((error) => {
+      this.options.logError({
+        error: {
+          error,
+          function: 'goToSearch',
+        },
+      });
+      throw {
+        error,
+        function: 'goToSearch',
+      };
+    });
     const jssessionCookie = cookies.filter(c => c.name === 'JSESSIONID');
     await browser.page.goto(this.urls.search + jssessionCookie[0].value, {
       timeout: this.options.timeoutSearch(),
@@ -328,7 +380,6 @@ class Scraper {
     await browser.page
       .waitForSelector('#footer', { timeout: this.options.timeoutSearch() })
       .catch((error) => {
-        console.log(error);
         throw new Error(error);
       });
     const resultsNumberString = await browser.page.evaluate(
@@ -386,7 +437,7 @@ class Scraper {
       ) {
         hasEntries = false;
       } else {
-        throw new Error(error);
+        throw error;
       }
     });
     if (!hasEntries || (await this.isSingleResult({ browser }))) {
@@ -394,19 +445,30 @@ class Scraper {
     }
     const resultInfos = await this.getResultInfos({ browser });
     this.status.search.pages.sum += resultInfos.pageSum;
+    let pagesCompleted = 0;
     for (let i = resultInfos.pageCurrent; i <= resultInfos.pageSum; i += 1) {
-      this.options.logUpdateLinkProgress(this.status);
-
-      const pageLinks = await this.getEntriesFromPage({ browser });
-      this.procedures.push(...pageLinks);
-      const curResultInfos = await this.getResultInfos({ browser });
-      this.status.search.pages.completed += 1;
-      if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
-        await this.clickWait({
-          browser,
-          selector:
-            '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input',
-        });
+      try {
+        const pageLinks = await this.getEntriesFromPage({ browser });
+        this.procedures.push(...pageLinks);
+        const curResultInfos = await this.getResultInfos({ browser });
+        this.status.search.pages.completed += 1;
+        pagesCompleted += 1;
+        this.options.logUpdateSearchProgress(this.status);
+        if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
+          await this.clickWait({
+            browser,
+            selector:
+              '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input',
+          });
+        }
+      } catch (error) {
+        this.status.search.pages.sum -= resultInfos.pageSum;
+        this.status.search.pages.completed -= pagesCompleted;
+        throw {
+          error,
+          function: 'startSearch',
+          type: 'timeout',
+        };
       }
     }
   };
@@ -435,7 +497,14 @@ class Scraper {
 
   async saveJson({ link, page }) {
     const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
-    await page.goto(link, { timeout: this.options.timeoutProcedure() });
+    await page.goto(link).catch((error) => {
+      throw {
+        error,
+        type: 'timeout',
+        url: link,
+        function: 'saveJson',
+      };
+    });
     let content;
     try {
       content = await page.evaluate(
@@ -443,15 +512,18 @@ class Scraper {
         '#inhaltsbereich',
       );
     } catch (error) {
-      // console.log(link);
-      throw new Error(error);
+      throw {
+        error,
+        type: 'not found',
+        url: link,
+        function: 'saveJson',
+      };
     }
 
     let procedureId;
     try {
       procedureId = content.match(procedureIdRegex)[1]; // eslint-disable-line
     } catch (error) {
-      // console.log(link)
       throw new Error(error);
     }
 
@@ -464,8 +536,13 @@ class Scraper {
     }
 
     const dataProcedure = await Scraper.getProcedureData({ page });
-    await page.goto(`${this.urls.processRunning}${vorgangId}`, {
-      timeout: this.options.timeoutProcedure(),
+    await page.goto(`${this.urls.processRunning}${vorgangId}`).catch((error) => {
+      throw {
+        error,
+        type: 'timeout',
+        url: link,
+        function: 'saveJson',
+      };
     });
     const dataProcedureRunning = await Scraper.getProcedureRunningData({ page });
 
@@ -491,8 +568,12 @@ class Scraper {
       const xmlString = html.match(xmlRegex)[0];
       return x2j.xml2js(xmlString);
     } catch (error) {
-      // console.log(await page.url())
-      throw new Error(error);
+      throw {
+        type: 'warning',
+        url: await page.url(),
+        error,
+        function: 'getProcedureRunningData',
+      };
     }
   }
 

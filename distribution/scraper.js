@@ -5,6 +5,7 @@ var _extends = Object.assign || function (target) { for (var i = 1; i < argument
 function _asyncToGenerator(fn) { return function () { var gen = fn.apply(this, arguments); return new Promise(function (resolve, reject) { function step(key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { return Promise.resolve(value).then(function (value) { step("next", value); }, function (err) { step("throw", err); }); } } return step("next"); }); }; }
 
 /* eslint-disable max-len */
+/* eslint-disable no-throw-literal */
 
 const puppeteer = require('puppeteer');
 const X2JS = require('x2js');
@@ -14,6 +15,8 @@ const _ = require('lodash');
 
 const x2j = new X2JS();
 
+process.setMaxListeners(Infinity);
+
 class Scraper {
   constructor() {
     var _this = this;
@@ -21,9 +24,9 @@ class Scraper {
     this.options = {
       selectPeriods: false,
       selectOperationTypes: false,
-      logStartLinkProgress: () => {},
-      logUpdateLinkProgress: () => {},
-      logStopLinkProgress: () => {},
+      logStartSearchProgress: () => {},
+      logUpdateSearchProgress: () => {},
+      logStopSearchProgress: () => {},
       logStartDataProgress: () => {},
       logUpdateDataProgress: () => {},
       logStopDataProgress: () => {},
@@ -33,9 +36,9 @@ class Scraper {
       doScrape: () => true,
       browserStackSize: 1,
       timeoutStart: 10001,
-      timeoutSearch: () => 30000,
-      timeoutProcedure: () => 30000,
-      maxRetries: () => 20
+      timeoutSearch: () => 5001,
+      maxRetries: () => 20,
+      defaultTimeout: 15000
     };
     this.urls = {
       basisInfos: 'https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail.do',
@@ -102,32 +105,30 @@ class Scraper {
               _this.status.search.instances.completed += 1;
             }).catch((() => {
               var _ref3 = _asyncToGenerator(function* (error) {
-                console.log(error);
-                yield browser.page.screenshot({
-                  path: `screenshoots/${_this.filters[filterIndex].period}-${_this.filters[filterIndex].operationType}.png`,
-                  fullPage: true
-                });
                 _this.filters[filterIndex].scraped = false;
+                throw error;
               });
 
               return function (_x3) {
                 return _ref3.apply(this, arguments);
               };
             })());
-            _this.options.logUpdateLinkProgress(_this.status);
+            _this.options.logUpdateSearchProgress(_this.status);
           } catch (error) {
+            _this.options.logError({ error });
             _this.filters[filterIndex].scraped = false;
             _this.stack[browserIndex].errors += 1;
             if (_this.stack[browserIndex].errors >= 5) {
               yield _this.createNewBrowser({ browserObject: _this.stack[browserIndex] }).then(function (newBrowser) {
                 _this.stack[browserIndex] = newBrowser;
-                _this.options.logUpdateLinkProgress(_this.status);
+                _this.options.logUpdateSearchProgress(_this.status);
               });
             }
+          } finally {
+            yield _this.getProceduresFromSearch({ browser, browserIndex });
           }
-          yield _this.getProceduresFromSearch({ browser, browserIndex });
         }
-        _this.options.logUpdateLinkProgress(_this.status);
+        _this.options.logUpdateSearchProgress(_this.status);
       });
 
       return function (_x2) {
@@ -136,26 +137,51 @@ class Scraper {
     })();
 
     this.finalize = _asyncToGenerator(function* () {
-      try {
-        yield Promise.all(_this.stack.map(function (b) {
-          return b.browser.close();
-        }));
-      } catch (error) {
-        throw new Error(error);
-        /* empty block */
-      }
+      yield Promise.all(_this.stack.map((() => {
+        var _ref5 = _asyncToGenerator(function* (b) {
+          yield b.page.close();
+          yield b.browser.close();
+        });
+
+        return function (_x4) {
+          return _ref5.apply(this, arguments);
+        };
+      })()));
+
+      _this.stack = [];
+      _this.availableFilters = {
+        periods: [],
+        operationTypes: []
+      };
+      _this.filters = [];
+      _this.procedures = [];
+      _this.status = {
+        search: {
+          instances: {
+            sum: 0,
+            completed: 0
+          },
+          pages: {
+            sum: 0,
+            completed: 0
+          }
+        }
+      };
     });
 
-    this.createBrowserStack = ({ size }) => [...Array(size)].map(this.createNewBrowser);
+    this.createBrowserStack = ({ size }) => [...Array(size)].map(_asyncToGenerator(function* () {
+      return _this.createNewBrowser();
+    }));
 
     this.createNewBrowser = (() => {
-      var _ref5 = _asyncToGenerator(function* ({ browserObject = {} } = {}) {
+      var _ref7 = _asyncToGenerator(function* ({ browserObject = {} } = {}) {
         const { timeoutStart } = _this.options;
         if (browserObject.browser) {
+          yield browserObject.page.close();
           yield browserObject.browser.close();
         }
         try {
-          const browser = yield puppeteer.launch();
+          const browser = yield puppeteer.launch({ timeout: _this.options.defaultTimeout });
           const page = yield browser.newPage();
           yield page.setRequestInterception(true);
           page.on('request', function (request) {
@@ -178,20 +204,29 @@ class Scraper {
             browser,
             page,
             used: false,
+            scraped: 0,
             errors: 0
           };
         } catch (error) {
-          return _this.createNewBrowser({ browserObject });
+          _this.options.logError({
+            error,
+            function: 'createNewBrowser'
+          });
+          return new Promise(function (resolve) {
+            setTimeout(_asyncToGenerator(function* () {
+              resolve((yield _this.createNewBrowser({ browserObject })));
+            }), 10000);
+          });
         }
       });
 
       return function () {
-        return _ref5.apply(this, arguments);
+        return _ref7.apply(this, arguments);
       };
     })();
 
     this.configureFilter = (() => {
-      var _ref6 = _asyncToGenerator(function* ({ periods, operationTypes }) {
+      var _ref9 = _asyncToGenerator(function* ({ periods, operationTypes }) {
         // Periods
         let selectedPeriods = [];
         if (_.isArray(_this.options.selectPeriods)) {
@@ -229,13 +264,13 @@ class Scraper {
         return { periods: selectedPeriods, operationTypes: selectedOperationTypes };
       });
 
-      return function (_x4) {
-        return _ref6.apply(this, arguments);
+      return function (_x5) {
+        return _ref9.apply(this, arguments);
       };
     })();
 
     this.takeOperationTypes = (() => {
-      var _ref7 = _asyncToGenerator(function* ({ browser }) {
+      var _ref10 = _asyncToGenerator(function* ({ browser }) {
         const selectField = yield browser.page.evaluate(function (sel) {
           return document.querySelector(sel).outerHTML;
         }, '#includeVorgangstyp');
@@ -249,8 +284,8 @@ class Scraper {
         return values;
       });
 
-      return function (_x5) {
-        return _ref7.apply(this, arguments);
+      return function (_x6) {
+        return _ref10.apply(this, arguments);
       };
     })();
 
@@ -270,7 +305,7 @@ class Scraper {
     });
 
     this.isSingleResult = (() => {
-      var _ref9 = _asyncToGenerator(function* ({ browser }) {
+      var _ref12 = _asyncToGenerator(function* ({ browser }) {
         try {
           const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
           const content = yield browser.page.evaluate(function (sel) {
@@ -291,28 +326,28 @@ class Scraper {
         }
       });
 
-      return function (_x6) {
-        return _ref9.apply(this, arguments);
+      return function (_x7) {
+        return _ref12.apply(this, arguments);
       };
     })();
 
     this.startSearch = (() => {
-      var _ref10 = _asyncToGenerator(function* ({ browser }) {
+      var _ref13 = _asyncToGenerator(function* ({ browser }) {
         // await this.clickWait({ browser, selector: 'input#btnSuche' });
         let hasEntries = true;
         yield Promise.all([browser.page.click('input#btnSuche'), browser.page.waitForSelector('#tabReiter0 > a', { timeout: 3000 }), browser.page.waitForSelector('#footer')]).catch((() => {
-          var _ref11 = _asyncToGenerator(function* (error) {
+          var _ref14 = _asyncToGenerator(function* (error) {
             if ((yield browser.page.$eval('#inhaltsbereich > div.inhalt > div.contentBox > fieldset.field.infoField > ul > li', function (e) {
               return e.innerHTML.trim();
             })) === 'Es konnte kein Datensatz gefunden werden.') {
               hasEntries = false;
             } else {
-              throw new Error(error);
+              throw error;
             }
           });
 
-          return function (_x8) {
-            return _ref11.apply(this, arguments);
+          return function (_x9) {
+            return _ref14.apply(this, arguments);
           };
         })());
         if (!hasEntries || (yield _this.isSingleResult({ browser }))) {
@@ -320,24 +355,35 @@ class Scraper {
         }
         const resultInfos = yield _this.getResultInfos({ browser });
         _this.status.search.pages.sum += resultInfos.pageSum;
+        let pagesCompleted = 0;
         for (let i = resultInfos.pageCurrent; i <= resultInfos.pageSum; i += 1) {
-          _this.options.logUpdateLinkProgress(_this.status);
-
-          const pageLinks = yield _this.getEntriesFromPage({ browser });
-          _this.procedures.push(...pageLinks);
-          const curResultInfos = yield _this.getResultInfos({ browser });
-          _this.status.search.pages.completed += 1;
-          if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
-            yield _this.clickWait({
-              browser,
-              selector: '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input'
-            });
+          try {
+            const pageLinks = yield _this.getEntriesFromPage({ browser });
+            _this.procedures.push(...pageLinks);
+            const curResultInfos = yield _this.getResultInfos({ browser });
+            _this.status.search.pages.completed += 1;
+            pagesCompleted += 1;
+            _this.options.logUpdateSearchProgress(_this.status);
+            if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
+              yield _this.clickWait({
+                browser,
+                selector: '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input'
+              });
+            }
+          } catch (error) {
+            _this.status.search.pages.sum -= resultInfos.pageSum;
+            _this.status.search.pages.completed -= pagesCompleted;
+            throw {
+              error,
+              function: 'startSearch',
+              type: 'timeout'
+            };
           }
         }
       });
 
-      return function (_x7) {
-        return _ref10.apply(this, arguments);
+      return function (_x8) {
+        return _ref13.apply(this, arguments);
       };
     })();
   }
@@ -353,9 +399,12 @@ class Scraper {
         size: browserStackSize
       }));
 
-      _this2.availableFilters = yield _this2.takeSearchableValues();
+      _this2.availableFilters = yield _this2.takeSearchableValues().catch(function () {
+        _this2.finalize();
+        throw new Error('Bundestag ist DOWN!!!'.red);
+      });
       const filtersSelected = yield _this2.configureFilter(_this2.availableFilters);
-      _this2.options.logStartLinkProgress(_this2.status);
+      _this2.options.logStartSearchProgress(_this2.status);
       yield _this2.collectProcedures(filtersSelected);
 
       // Data
@@ -365,16 +414,19 @@ class Scraper {
         retries: _this2.retries,
         maxRetries: _this2.options.maxRetries
       });
+      _this2.options.logStopDataProgress();
+
       yield Promise.all(_this2.stack.map((() => {
-        var _ref12 = _asyncToGenerator(function* (browser, browserIndex) {
+        var _ref15 = _asyncToGenerator(function* (browser, browserIndex) {
           yield _this2.startAnalyse(browserIndex);
         });
 
-        return function (_x9, _x10) {
-          return _ref12.apply(this, arguments);
+        return function (_x10, _x11) {
+          return _ref15.apply(this, arguments);
         };
       })())).then(_asyncToGenerator(function* () {
         // Finalize
+        _this2.options.logStopSearchProgress();
         yield _this2.finalize();
         _this2.options.logFinished();
       }));
@@ -389,40 +441,53 @@ class Scraper {
         return !scraped;
       });
       if (linkIndex !== -1) {
+        _this3.stack[browserIndex].used = true;
         _this3.procedures[linkIndex].scraped = true;
         yield _this3.saveJson({
           link: _this3.procedures[linkIndex].url,
           page: _this3.stack[browserIndex].page
-        }).then(function () {
+        }).then(_asyncToGenerator(function* () {
           _this3.completedLinks += 1;
           _this3.options.logUpdateDataProgress({
             value: _this3.completedLinks,
             retries: _this3.retries,
-            maxRetries: _this3.options.maxRetries
+            maxRetries: _this3.options.maxRetries,
+            browsers: _this3.stack
           });
-        }).catch((() => {
-          var _ref14 = _asyncToGenerator(function* (error) {
+          _this3.stack[browserIndex].used = false;
+          _this3.stack[browserIndex].scraped += 1;
+        })).catch((() => {
+          var _ref18 = _asyncToGenerator(function* (error) {
             _this3.options.logError({ error });
             _this3.procedures[linkIndex].scraped = false;
+            _this3.stack[browserIndex].used = false;
             _this3.stack[browserIndex].errors += 1;
 
             if (_this3.stack[browserIndex].errors >= 5) {
-              yield _this3.createNewBrowser({ browserObject: _this3.stack[browserIndex] }).then(function (newBrowser) {
-                _this3.stack[browserIndex] = newBrowser;
-                _this3.options.logUpdateDataProgress({
-                  value: _this3.completedLinks,
-                  retries: _this3.retries,
-                  maxRetries: _this3.options.maxRetries
+              yield _this3.createNewBrowser({ browserObject: _this3.stack[browserIndex] }).then((() => {
+                var _ref19 = _asyncToGenerator(function* (newBrowser) {
+                  _this3.stack[browserIndex] = newBrowser;
+                  _this3.options.logUpdateDataProgress({
+                    value: _this3.completedLinks,
+                    retries: _this3.retries,
+                    maxRetries: _this3.options.maxRetries,
+                    browsers: _this3.stack
+                  });
                 });
-              });
+
+                return function (_x13) {
+                  return _ref19.apply(this, arguments);
+                };
+              })());
             }
           });
 
-          return function (_x11) {
-            return _ref14.apply(this, arguments);
+          return function (_x12) {
+            return _ref18.apply(this, arguments);
           };
-        })());
-        yield _this3.startAnalyse(browserIndex);
+        })()).finally(_asyncToGenerator(function* () {
+          yield _this3.startAnalyse(browserIndex);
+        }));
       }
     })();
   }
@@ -431,7 +496,18 @@ class Scraper {
     var _this4 = this;
 
     return _asyncToGenerator(function* () {
-      const cookies = yield browser.page.cookies();
+      const cookies = yield browser.page.cookies().catch(function (error) {
+        _this4.options.logError({
+          error: {
+            error,
+            function: 'goToSearch'
+          }
+        });
+        throw {
+          error,
+          function: 'goToSearch'
+        };
+      });
       const jssessionCookie = cookies.filter(function (c) {
         return c.name === 'JSESSIONID';
       });
@@ -487,7 +563,6 @@ class Scraper {
     return _asyncToGenerator(function* () {
       const reg = /Seite (\d*) von (\d*) \(Treffer (\d*) bis (\d*) von (\d*)\)/;
       yield browser.page.waitForSelector('#footer', { timeout: _this8.options.timeoutSearch() }).catch(function (error) {
-        console.log(error);
         throw new Error(error);
       });
       const resultsNumberString = yield browser.page.evaluate(function (sel) {
@@ -536,22 +611,32 @@ class Scraper {
 
     return _asyncToGenerator(function* () {
       const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
-      yield page.goto(link, { timeout: _this10.options.timeoutProcedure() });
+      yield page.goto(link).catch(function (error) {
+        throw {
+          error,
+          type: 'timeout',
+          url: link,
+          function: 'saveJson'
+        };
+      });
       let content;
       try {
         content = yield page.evaluate(function (sel) {
           return document.querySelector(sel).innerHTML;
         }, '#inhaltsbereich');
       } catch (error) {
-        // console.log(link);
-        throw new Error(error);
+        throw {
+          error,
+          type: 'not found',
+          url: link,
+          function: 'saveJson'
+        };
       }
 
       let procedureId;
       try {
         procedureId = content.match(procedureIdRegex)[1]; // eslint-disable-line
       } catch (error) {
-        // console.log(link)
         throw new Error(error);
       }
 
@@ -564,8 +649,13 @@ class Scraper {
       }
 
       const dataProcedure = yield Scraper.getProcedureData({ page });
-      yield page.goto(`${_this10.urls.processRunning}${vorgangId}`, {
-        timeout: _this10.options.timeoutProcedure()
+      yield page.goto(`${_this10.urls.processRunning}${vorgangId}`).catch(function (error) {
+        throw {
+          error,
+          type: 'timeout',
+          url: link,
+          function: 'saveJson'
+        };
       });
       const dataProcedureRunning = yield Scraper.getProcedureRunningData({ page });
 
@@ -593,8 +683,12 @@ class Scraper {
         const xmlString = html.match(xmlRegex)[0];
         return x2j.xml2js(xmlString);
       } catch (error) {
-        // console.log(await page.url())
-        throw new Error(error);
+        throw {
+          type: 'warning',
+          url: yield page.url(),
+          error,
+          function: 'getProcedureRunningData'
+        };
       }
     })();
   }

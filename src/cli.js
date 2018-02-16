@@ -9,17 +9,20 @@ const fs = require('fs-extra');
 const ProgressBar = require('ascii-progress');
 const _ = require('lodash');
 const prettyMs = require('pretty-ms');
+const chalk = require('chalk');
 // const readline = require('readline');
 
 program
-  .version('0.0.1')
+  .version('0.1.0')
   .description('Bundestag scraper')
-  .option('-p, --period [PeriodenNummer|Alle]', 'Select a specified period [null]', null)
+  .option('-p, --periods [PeriodenNummers|Alle]', 'comma sperated period numbers', null)
   .option(
     '-t, --operationtypes <OperationTypeNummer|Alle>',
     'Select specified OperationTypes [null]',
     null,
   )
+  .option('-s, --stacksize <Integer>', 'size of paralell browsers', 1)
+  .option('-q, --quiet', 'Silent Mode - No Outputs')
   .parse(process.argv);
 
 const scraper = new Scraper();
@@ -29,7 +32,7 @@ let bar2;
 let bar3;
 
 const selectPeriods = async ({ periods }) => {
-  let selectedPeriod = program.period;
+  let selectedPeriod = program.periods;
   if (!selectedPeriod) {
     const period = await inquirer.prompt({
       type: 'checkbox',
@@ -47,12 +50,13 @@ const selectPeriods = async ({ periods }) => {
       })
       .filter(v => v !== undefined);
     return selectedPeriod;
-  } else if (!periods.find(period => period.name === selectedPeriod)) {
-    console.log(`'${selectedPeriod}' is not a valid option for period`);
-    process.exit(1);
   }
-  console.log(`Selected Period '${selectedPeriod}'`);
-  return periods.find(period => period.name === selectedPeriod).name;
+  // else if (!periods.find(period => period.name === selectedPeriod)) {
+  //   console.log(`'${selectedPeriod}' is not a valid option for period`);
+  //   process.exit(1);
+  // }
+  return selectedPeriod.split(',').filter(name => periods.find(period => period.name === name));
+  // return periods.find(period => period.name === selectedPeriod).name;
 };
 
 const selectOperationTypes = async ({ operationTypes }) => {
@@ -83,20 +87,18 @@ const logFinished = async () => {
   console.log('############### FINISH ###############');
 };
 
-const logStartLinkProgress = async () => {
-  console.log('Eintragslinks sammeln');
+const logStartSearchProgress = async () => {
   bar1 = new ProgressBar({
     schema: 'filters [:bar] :percent :completed/:sum | :estf | :duration',
+    width: 20,
   });
   bar2 = new ProgressBar({
     schema: 'pages [:bar] :percent :completed/:sum | :estf | :duration',
+    width: 20,
   });
 };
 
-const logUpdateLinkProgress = async ({ search }) => {
-  // barSearchPages.update(search.pages.completed, {}, search.pages.sum);
-  // barSearchInstances.update(search.instances.completed, {}, search.instances.sum);
-
+const logUpdateSearchProgress = async ({ search }) => {
   bar1.tick(_.toInteger(search.instances.completed / search.instances.sum * 100 - bar1.current), {
     completed: search.instances.completed,
     sum: search.instances.sum,
@@ -118,15 +120,20 @@ const logUpdateLinkProgress = async ({ search }) => {
 };
 
 const logStartDataProgress = async ({ sum }) => {
-  console.log('Einträge downloaden');
-  // barData.start(sum, 0, { retries, maxRetries });
+  console.log('links analysieren');
   bar3 = new ProgressBar({
-    schema: 'links [:bar] :percent :current/:total | :estf | :duration',
+    schema:
+      'links | :cpercent | :current/:total | :estf | :duration | :browsersRunning | :browsersScraped | :browserErrors ',
     total: sum,
   });
 };
 
-const logUpdateDataProgress = async ({ value }) => {
+function getColor(value) {
+  // value from 0 to 1
+  return (1 - value) * 120;
+}
+
+const logUpdateDataProgress = async ({ value, browsers }) => {
   // barData.update(value, { retries, maxRetries });
   let tick = 0;
   if (value > bar3.current) {
@@ -135,11 +142,22 @@ const logUpdateDataProgress = async ({ value }) => {
     tick = -1;
   }
   bar3.tick(tick, {
-    estf: prettyMs(
+    estf: chalk.hsl(getColor(1 - bar3.current / bar3.total), 100, 50)(prettyMs(
       _.toInteger((new Date() - bar3.start) / bar3.current * (bar3.total - bar3.current)),
       { compact: true },
-    ),
+    )),
     duration: prettyMs(_.toInteger(new Date() - bar3.start), { secDecimalDigits: 0 }),
+    browserErrors: browsers.map(({ errors }) => chalk.hsl(getColor(errors / 5), 100, 50)(errors)),
+    browsersRunning: browsers.reduce((count, { used }) => count + (used ? 1 : 0), 0),
+    browsersScraped: browsers.map(({ scraped }) => {
+      if (_.maxBy(browsers, 'scraped').scraped === scraped) {
+        return chalk.green(scraped);
+      } else if (_.minBy(browsers, 'scraped').scraped === scraped) {
+        return chalk.red(scraped);
+      }
+      return scraped;
+    }),
+    cpercent: chalk.hsl(getColor(1 - bar3.current / bar3.total), 100, 50)(`${(bar3.current / bar3.total * 100).toFixed(1)}%`),
   });
 };
 
@@ -157,10 +175,6 @@ const outScraperData = async ({ procedureId, procedureData }) => {
     },
     (/* err */) => {},
   );
-};
-
-const logFatalError = ({ error }) => {
-  console.log(`Fatal: ${error}`);
 };
 
 // HANDLE EXIT
@@ -187,18 +201,38 @@ process.on('SIGUSR2', scraper.finalize.bind(scraper));
 // catches uncaught exceptions
 process.on('uncaughtException', scraper.finalize.bind(scraper));
 */
+
+process.on('SIGINT', async () => {
+  process.exit(1);
+});
+
+const logError = ({ error }) => {
+  switch (error.type) {
+    case 'timeout':
+    case 'not found':
+    case 'warning':
+      if (error.function !== 'saveJson' && error.function !== 'getProcedureRunningData') {
+        console.log(error);
+      }
+      break;
+    default:
+      console.log(error);
+      break;
+  }
+};
+
 scraper
   .scrape({
     selectPeriods,
     selectOperationTypes,
-    logStartLinkProgress,
-    logUpdateLinkProgress,
-    logStartDataProgress,
-    logUpdateDataProgress,
-    logFinished,
-    logFatalError,
+    logStartSearchProgress: program.quiet ? () => {} : logStartSearchProgress,
+    logUpdateSearchProgress: program.quiet ? () => {} : logUpdateSearchProgress,
+    logStartDataProgress: program.quiet ? () => {} : logStartDataProgress,
+    logUpdateDataProgress: program.quiet ? () => {} : logUpdateDataProgress,
+    logFinished: program.quiet ? () => {} : logFinished,
     outScraperData,
-    browserStackSize: 7,
+    browserStackSize: _.toInteger(program.stacksize),
+    logError: program.quiet ? () => {} : logError,
   })
   .catch((error) => {
     console.error(error);

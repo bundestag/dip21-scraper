@@ -23,6 +23,6 @@ matrix:
                 - yarn --version
                 - yarn install
             script:
-                - yarn start -p 19 -t 100
+                - yarn start --periods 19 --operationtypes 100 --quiet
 after_script:
   - echo "BUILD FINISHED"
