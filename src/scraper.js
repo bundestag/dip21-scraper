@@ -1,4 +1,5 @@
 /* eslint-disable max-len */
+/* eslint-disable no-throw-literal */
 
 const puppeteer = require('puppeteer');
 const X2JS = require('x2js');
@@ -8,7 +9,7 @@ const _ = require('lodash');
 
 const x2j = new X2JS();
 
-process.setMaxListeners(Infinity)
+process.setMaxListeners(Infinity);
 
 class Scraper {
   options = {
@@ -28,7 +29,7 @@ class Scraper {
     timeoutStart: 10001,
     timeoutSearch: () => 5001,
     maxRetries: () => 20,
-    defaultTimeout: 15000
+    defaultTimeout: 15000,
   };
 
   urls = {
@@ -130,7 +131,7 @@ class Scraper {
           });
         this.options.logUpdateSearchProgress(this.status);
       } catch (error) {
-        this.options.logError({error});
+        this.options.logError({ error });
         this.filters[filterIndex].scraped = false;
         this.stack[browserIndex].errors += 1;
         if (this.stack[browserIndex].errors >= 5) {
@@ -182,9 +183,10 @@ class Scraper {
               });
             });
           }
-        }).finally(async () => {
+        })
+        .finally(async () => {
           await this.startAnalyse(browserIndex);
-        } ) ;
+        });
     }
   }
 
@@ -215,8 +217,7 @@ class Scraper {
     };
   };
 
-  createBrowserStack = ({ size }) =>
-    [...Array(size)].map(async () => await this.createNewBrowser());
+  createBrowserStack = ({ size }) => [...Array(size)].map(async () => this.createNewBrowser());
 
   createNewBrowser = async ({ browserObject = {} } = {}) => {
     const { timeoutStart } = this.options;
@@ -254,9 +255,9 @@ class Scraper {
     } catch (error) {
       this.options.logError({
         error,
-        function: 'createNewBrowser'
+        function: 'createNewBrowser',
       });
-      return await new Promise((resolve) => {
+      return new Promise((resolve) => {
         setTimeout(async () => {
           resolve(await this.createNewBrowser({ browserObject }));
         }, 10000);
@@ -265,16 +266,18 @@ class Scraper {
   };
 
   async goToSearch({ browser }) {
-    const cookies = await browser.page.cookies().catch(error => {
-      this.options.logError({error: {
-        error,
-        function: 'goToSearch',
-      }})
+    const cookies = await browser.page.cookies().catch((error) => {
+      this.options.logError({
+        error: {
+          error,
+          function: 'goToSearch',
+        },
+      });
       throw {
         error,
-        function: 'goToSearch'
-      }
-    } );
+        function: 'goToSearch',
+      };
+    });
     const jssessionCookie = cookies.filter(c => c.name === 'JSESSIONID');
     await browser.page.goto(this.urls.search + jssessionCookie[0].value, {
       timeout: this.options.timeoutSearch(),
@@ -512,7 +515,7 @@ class Scraper {
         error,
         type: 'not found',
         url: link,
-        function: 'saveJson'
+        function: 'saveJson',
       };
     }
 
@@ -568,7 +571,7 @@ class Scraper {
         type: 'warning',
         url: await page.url(),
         error,
-        function: 'getProcedureRunningData'
+        function: 'getProcedureRunningData',
       };
     }
   }
