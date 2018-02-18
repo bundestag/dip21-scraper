@@ -36,7 +36,7 @@ class Scraper {
       outScraperData: () => {},
       doScrape: () => true,
       browserStackSize: 1,
-      timeoutStart: 10001,
+      timeoutStart: 3001,
       timeoutSearch: () => 5001,
       maxRetries: () => 20,
       defaultTimeout: 15000
@@ -107,6 +107,7 @@ class Scraper {
             }).catch((() => {
               var _ref3 = _asyncToGenerator(function* (error) {
                 _this.filters[filterIndex].scraped = false;
+                error.code = 1002;
                 throw error;
               });
 
@@ -123,6 +124,8 @@ class Scraper {
               yield _this.createNewBrowser({ browserObject: _this.stack[browserIndex] }).then(function (newBrowser) {
                 _this.stack[browserIndex] = newBrowser;
                 _this.options.logUpdateSearchProgress(_this.status);
+              }).catch(function (error2) {
+                _this.options.logError({ error2, function: 'getProceduresFromSearch' });
               });
             }
           } finally {
@@ -178,7 +181,13 @@ class Scraper {
       var _ref7 = _asyncToGenerator(function* ({ browserObject = {} } = {}) {
         const { timeoutStart } = _this.options;
         if (browserObject.browser) {
-          yield browserObject.page.close();
+          yield browserObject.page.close().catch(function (error) {
+            throw {
+              error,
+              function: 'createNewBrowser',
+              code: 1003
+            };
+          });
           yield browserObject.browser.close();
         }
         try {
@@ -343,6 +352,7 @@ class Scraper {
             })) === 'Es konnte kein Datensatz gefunden werden.') {
               hasEntries = false;
             } else {
+              error.code = 1007;
               throw error;
             }
           });
@@ -377,7 +387,8 @@ class Scraper {
             throw {
               error,
               function: 'startSearch',
-              type: 'timeout'
+              type: 'timeout',
+              code: 1008
             };
           }
         }
@@ -405,7 +416,8 @@ class Scraper {
         throw {
           error,
           message: 'Bundestag ist DOWN!!!',
-          type: chalk.red('fatal')
+          type: chalk.red('fatal'),
+          code: 1001
         };
       });
       const filtersSelected = yield _this2.configureFilter(_this2.availableFilters);
@@ -453,12 +465,6 @@ class Scraper {
           page: _this3.stack[browserIndex].page
         }).then(_asyncToGenerator(function* () {
           _this3.completedLinks += 1;
-          _this3.options.logUpdateDataProgress({
-            value: _this3.completedLinks,
-            retries: _this3.retries,
-            maxRetries: _this3.options.maxRetries,
-            browsers: _this3.stack
-          });
           _this3.stack[browserIndex].used = false;
           _this3.stack[browserIndex].scraped += 1;
         })).catch((() => {
@@ -472,18 +478,12 @@ class Scraper {
               yield _this3.createNewBrowser({ browserObject: _this3.stack[browserIndex] }).then((() => {
                 var _ref19 = _asyncToGenerator(function* (newBrowser) {
                   _this3.stack[browserIndex] = newBrowser;
-                  _this3.options.logUpdateDataProgress({
-                    value: _this3.completedLinks,
-                    retries: _this3.retries,
-                    maxRetries: _this3.options.maxRetries,
-                    browsers: _this3.stack
-                  });
                 });
 
                 return function (_x13) {
                   return _ref19.apply(this, arguments);
                 };
-              })());
+              })()).catch(function () {});
             }
           });
 
@@ -491,6 +491,12 @@ class Scraper {
             return _ref18.apply(this, arguments);
           };
         })()).then(_asyncToGenerator(function* () {
+          _this3.options.logUpdateDataProgress({
+            value: _this3.completedLinks,
+            retries: _this3.retries,
+            maxRetries: _this3.options.maxRetries,
+            browsers: _this3.stack
+          });
           yield _this3.startAnalyse(browserIndex);
         }));
       }
@@ -504,7 +510,8 @@ class Scraper {
       const cookies = yield browser.page.cookies().catch(function (error) {
         throw {
           error,
-          function: 'goToSearch'
+          function: 'goToSearch',
+          code: 1004
         };
       });
       const jssessionCookie = cookies.filter(function (c) {
@@ -538,7 +545,13 @@ class Scraper {
       const period = _this6.availableFilters.periods.find(function (p) {
         return p.name === periodName;
       });
-      yield Promise.all([browser.page.waitForNavigation({ waitUntil: ['domcontentloaded'] }), browser.page.select('select#wahlperiode', period.value)]);
+      yield Promise.all([browser.page.waitForNavigation({ waitUntil: ['domcontentloaded'] }), browser.page.select('select#wahlperiode', period.value)]).catch(function (error) {
+        throw {
+          error,
+          function: 'selectPeriod',
+          code: 1005
+        };
+      });
     })();
   }
 
@@ -562,7 +575,11 @@ class Scraper {
     return _asyncToGenerator(function* () {
       const reg = /Seite (\d*) von (\d*) \(Treffer (\d*) bis (\d*) von (\d*)\)/;
       yield browser.page.waitForSelector('#footer', { timeout: _this8.options.timeoutSearch() }).catch(function (error) {
-        throw new Error(error);
+        throw {
+          error,
+          code: 1006,
+          function: 'getResultInfos'
+        };
       });
       const resultsNumberString = yield browser.page.evaluate(function (sel) {
         return document.querySelector(sel).outerHTML;
@@ -596,7 +613,10 @@ class Scraper {
             };
           }
           const error = new Error('Could not get Entries from Page');
-          throw new Error(error);
+          throw {
+            error,
+            code: 1009
+          };
         });
       });
       return links.filter(function (link) {
@@ -615,7 +635,8 @@ class Scraper {
           error,
           type: 'timeout',
           url: link,
-          function: 'saveJson'
+          function: 'saveJson',
+          code: 1010
         };
       });
       let content;
@@ -628,7 +649,8 @@ class Scraper {
           error,
           type: 'not found',
           url: link,
-          function: 'saveJson'
+          function: 'saveJson',
+          code: 1011
         };
       }
 
@@ -636,7 +658,10 @@ class Scraper {
       try {
         procedureId = content.match(procedureIdRegex)[1]; // eslint-disable-line
       } catch (error) {
-        throw new Error(error);
+        throw {
+          error,
+          code: 1012
+        };
       }
 
       const urlObj = Url.parse(link);
@@ -644,7 +669,10 @@ class Scraper {
       const vorgangId = queryObj.selId;
       if (procedureId.split('-')[1] !== vorgangId) {
         const error = new Error(`Procedure ID missmatch URL: "${vorgangId}" to HTML: "${procedureId.split('-')[1]}"`);
-        throw new Error(error);
+        throw {
+          error,
+          code: 1013
+        };
       }
 
       const dataProcedure = yield Scraper.getProcedureData({ page });
@@ -653,7 +681,8 @@ class Scraper {
           error,
           type: 'timeout',
           url: link,
-          function: 'saveJson'
+          function: 'saveJson',
+          code: 1014
         };
       });
       const dataProcedureRunning = yield Scraper.getProcedureRunningData({ page });
@@ -686,7 +715,8 @@ class Scraper {
           type: 'warning',
           url: yield page.url(),
           error,
-          function: 'getProcedureRunningData'
+          function: 'getProcedureRunningData',
+          code: 1015
         };
       }
     })();

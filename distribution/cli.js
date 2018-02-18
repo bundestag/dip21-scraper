@@ -178,7 +178,7 @@ const logUpdateDataProgress = (() => {
       estf: chalk.hsl(getColor(1 - bar3.current / bar3.total), 100, 50)(prettyMs(_.toInteger((new Date() - bar3.start) / bar3.current * (bar3.total - bar3.current)), { compact: true })),
       duration: prettyMs(_.toInteger(new Date() - bar3.start), { secDecimalDigits: 0 }),
       browserErrors: browsers.map(function ({ errors }) {
-        return chalk.hsl(getColor(errors / 5), 100, 50)(errors);
+        return chalk.hsl(getColor(errors / 4), 100, 50)(errors);
       }),
       browsersRunning: browsers.reduce(function (count, { used }) {
         return count + (used ? 1 : 0);
@@ -248,7 +248,15 @@ const logError = ({ error }) => {
   if (error.type === 'fatal' && error.message) {
     console.log(error);
   }
-  log.error(error);
+  switch (error.code) {
+    case 1004:
+
+      break;
+
+    default:
+      log.error(error);
+      break;
+  }
 };
 
 scraper.scrape({

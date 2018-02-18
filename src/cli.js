@@ -149,7 +149,7 @@ const logUpdateDataProgress = async ({ value, browsers }) => {
       { compact: true },
     )),
     duration: prettyMs(_.toInteger(new Date() - bar3.start), { secDecimalDigits: 0 }),
-    browserErrors: browsers.map(({ errors }) => chalk.hsl(getColor(errors / 5), 100, 50)(errors)),
+    browserErrors: browsers.map(({ errors }) => chalk.hsl(getColor(errors / 4), 100, 50)(errors)),
     browsersRunning: browsers.reduce((count, { used }) => count + (used ? 1 : 0), 0),
     browsersScraped: browsers.map(({ scraped }) => {
       if (_.maxBy(browsers, 'scraped').scraped === scraped) {
@@ -212,7 +212,15 @@ const logError = ({ error }) => {
   if (error.type === 'fatal' && error.message) {
     console.log(error);
   }
-  log.error(error);
+  switch (error.code) {
+    case 1004:
+
+      break;
+
+    default:
+      log.error(error);
+      break;
+  }
 };
 
 scraper
