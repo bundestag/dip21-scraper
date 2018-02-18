@@ -13,6 +13,7 @@ const Url = require('url');
 const Querystring = require('querystring');
 const _ = require('lodash');
 const chalk = require('chalk');
+const Page = require('puppeteer/lib/Page');
 
 const x2j = new X2JS();
 
@@ -115,7 +116,6 @@ class Scraper {
                 return _ref3.apply(this, arguments);
               };
             })());
-            _this.options.logUpdateSearchProgress(_this.status);
           } catch (error) {
             _this.options.logError({ error });
             _this.filters[filterIndex].scraped = false;
@@ -123,12 +123,12 @@ class Scraper {
             if (_this.stack[browserIndex].errors >= 5) {
               yield _this.createNewBrowser({ browserObject: _this.stack[browserIndex] }).then(function (newBrowser) {
                 _this.stack[browserIndex] = newBrowser;
-                _this.options.logUpdateSearchProgress(_this.status);
               }).catch(function (error2) {
                 _this.options.logError({ error2, function: 'getProceduresFromSearch' });
               });
             }
           } finally {
+            _this.options.logUpdateSearchProgress(_this.status);
             yield _this.getProceduresFromSearch({ browser, browserIndex });
           }
         }
@@ -143,14 +143,14 @@ class Scraper {
     this.finalize = _asyncToGenerator(function* () {
       yield Promise.all(_this.stack.map((() => {
         var _ref5 = _asyncToGenerator(function* (b) {
-          yield b.page.close();
-          yield b.browser.close();
+          yield _this.closePage(b);
         });
 
         return function (_x4) {
           return _ref5.apply(this, arguments);
         };
       })()));
+      yield _this.browser.close();
 
       _this.stack = [];
       _this.availableFilters = {
@@ -177,22 +177,44 @@ class Scraper {
       return _this.createNewBrowser();
     }));
 
+    this.newPageWithNewContext = (() => {
+      var _ref7 = _asyncToGenerator(function* ({ browser = _this.browser }) {
+        const { browserContextId } = yield browser._connection.send('Target.createBrowserContext');
+        const { targetId } = yield browser._connection.send('Target.createTarget', { url: 'about:blank', browserContextId });
+        const target = yield browser._targets.get(targetId);
+        const client = yield browser._connection.createSession(targetId);
+        const page = yield Page.create(client, target, browser._ignoreHTTPSErrors, browser._screenshotTaskQueue);
+        page.setDefaultNavigationTimeout(_this.options.defaultTimeout);
+        page.browserContextId = browserContextId;
+        return page;
+      });
+
+      return function (_x5) {
+        return _ref7.apply(this, arguments);
+      };
+    })();
+
+    this.closePage = (() => {
+      var _ref8 = _asyncToGenerator(function* ({ browser, page }) {
+        if (page.browserContextId !== undefined) {
+          yield browser._connection.send('Target.disposeBrowserContext', { browserContextId: page.browserContextId });
+        }
+        yield page.close();
+      });
+
+      return function (_x6) {
+        return _ref8.apply(this, arguments);
+      };
+    })();
+
     this.createNewBrowser = (() => {
-      var _ref7 = _asyncToGenerator(function* ({ browserObject = {} } = {}) {
+      var _ref9 = _asyncToGenerator(function* ({ browserObject = {} } = {}) {
         const { timeoutStart } = _this.options;
-        if (browserObject.browser) {
-          yield browserObject.page.close().catch(function (error) {
-            throw {
-              error,
-              function: 'createNewBrowser',
-              code: 1003
-            };
-          });
-          yield browserObject.browser.close();
+        if (browserObject.page) {
+          yield _this.closePage(browserObject);
         }
         try {
-          const browser = yield puppeteer.launch({ timeout: _this.options.defaultTimeout });
-          const page = yield browser.newPage();
+          const page = yield _this.newPageWithNewContext(browserObject);
           yield page.setRequestInterception(true);
           page.on('request', function (request) {
             switch (request.resourceType()) {
@@ -211,7 +233,7 @@ class Scraper {
             timeout: timeoutStart
           });
           return {
-            browser,
+            browser: _this.browser,
             page,
             used: false,
             scraped: 0,
@@ -231,12 +253,12 @@ class Scraper {
       });
 
       return function () {
-        return _ref7.apply(this, arguments);
+        return _ref9.apply(this, arguments);
       };
     })();
 
     this.configureFilter = (() => {
-      var _ref9 = _asyncToGenerator(function* ({ periods, operationTypes }) {
+      var _ref11 = _asyncToGenerator(function* ({ periods, operationTypes }) {
         // Periods
         let selectedPeriods = [];
         if (_.isArray(_this.options.selectPeriods)) {
@@ -274,13 +296,13 @@ class Scraper {
         return { periods: selectedPeriods, operationTypes: selectedOperationTypes };
       });
 
-      return function (_x5) {
-        return _ref9.apply(this, arguments);
+      return function (_x7) {
+        return _ref11.apply(this, arguments);
       };
     })();
 
     this.takeOperationTypes = (() => {
-      var _ref10 = _asyncToGenerator(function* ({ browser }) {
+      var _ref12 = _asyncToGenerator(function* ({ browser }) {
         const selectField = yield browser.page.evaluate(function (sel) {
           return document.querySelector(sel).outerHTML;
         }, '#includeVorgangstyp');
@@ -294,8 +316,8 @@ class Scraper {
         return values;
       });
 
-      return function (_x6) {
-        return _ref10.apply(this, arguments);
+      return function (_x8) {
+        return _ref12.apply(this, arguments);
       };
     })();
 
@@ -315,7 +337,7 @@ class Scraper {
     });
 
     this.isSingleResult = (() => {
-      var _ref12 = _asyncToGenerator(function* ({ browser }) {
+      var _ref14 = _asyncToGenerator(function* ({ browser }) {
         try {
           const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
           const content = yield browser.page.evaluate(function (sel) {
@@ -336,17 +358,17 @@ class Scraper {
         }
       });
 
-      return function (_x7) {
-        return _ref12.apply(this, arguments);
+      return function (_x9) {
+        return _ref14.apply(this, arguments);
       };
     })();
 
     this.startSearch = (() => {
-      var _ref13 = _asyncToGenerator(function* ({ browser }) {
+      var _ref15 = _asyncToGenerator(function* ({ browser }) {
         // await this.clickWait({ browser, selector: 'input#btnSuche' });
         let hasEntries = true;
         yield Promise.all([browser.page.click('input#btnSuche'), browser.page.waitForSelector('#tabReiter0 > a', { timeout: 3000 }), browser.page.waitForSelector('#footer')]).catch((() => {
-          var _ref14 = _asyncToGenerator(function* (error) {
+          var _ref16 = _asyncToGenerator(function* (error) {
             if ((yield browser.page.$eval('#inhaltsbereich > div.inhalt > div.contentBox > fieldset.field.infoField > ul > li', function (e) {
               return e.innerHTML.trim();
             })) === 'Es konnte kein Datensatz gefunden werden.') {
@@ -357,8 +379,8 @@ class Scraper {
             }
           });
 
-          return function (_x9) {
-            return _ref14.apply(this, arguments);
+          return function (_x11) {
+            return _ref16.apply(this, arguments);
           };
         })());
         if (!hasEntries || (yield _this.isSingleResult({ browser }))) {
@@ -374,7 +396,6 @@ class Scraper {
             const curResultInfos = yield _this.getResultInfos({ browser });
             _this.status.search.pages.completed += 1;
             pagesCompleted += 1;
-            _this.options.logUpdateSearchProgress(_this.status);
             if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
               yield _this.clickWait({
                 browser,
@@ -390,12 +411,14 @@ class Scraper {
               type: 'timeout',
               code: 1008
             };
+          } finally {
+            _this.options.logUpdateSearchProgress(_this.status);
           }
         }
       });
 
-      return function (_x8) {
-        return _ref13.apply(this, arguments);
+      return function (_x10) {
+        return _ref15.apply(this, arguments);
       };
     })();
   }
@@ -406,6 +429,9 @@ class Scraper {
     return _asyncToGenerator(function* () {
       _this2.options = _extends({}, _this2.options, options);
       const { browserStackSize } = _this2.options;
+
+      _this2.browser = yield puppeteer.launch({ timeout: _this2.options.defaultTimeout });
+
       // this.retries = -this.options.browserStackSize();
       _this2.stack = yield Promise.all(_this2.createBrowserStack({
         size: browserStackSize
@@ -431,19 +457,25 @@ class Scraper {
         retries: _this2.retries,
         maxRetries: _this2.options.maxRetries
       });
-      _this2.options.logStopDataProgress();
+      _this2.options.logStopSearchProgress();
 
       yield Promise.all(_this2.stack.map((() => {
-        var _ref15 = _asyncToGenerator(function* (browser, browserIndex) {
+        var _ref17 = _asyncToGenerator(function* (browser, browserIndex) {
           yield _this2.startAnalyse(browserIndex);
         });
 
-        return function (_x10, _x11) {
-          return _ref15.apply(this, arguments);
+        return function (_x12, _x13) {
+          return _ref17.apply(this, arguments);
         };
       })())).then(_asyncToGenerator(function* () {
+        _this2.options.logUpdateDataProgress({
+          value: _this2.completedLinks,
+          retries: _this2.retries,
+          maxRetries: _this2.options.maxRetries,
+          browsers: _this2.stack
+        });
         // Finalize
-        _this2.options.logStopSearchProgress();
+        _this2.options.logStopDataProgress();
         yield _this2.finalize();
         _this2.options.logFinished();
       }));
@@ -468,7 +500,7 @@ class Scraper {
           _this3.stack[browserIndex].used = false;
           _this3.stack[browserIndex].scraped += 1;
         })).catch((() => {
-          var _ref18 = _asyncToGenerator(function* (error) {
+          var _ref20 = _asyncToGenerator(function* (error) {
             _this3.options.logError({ error });
             _this3.procedures[linkIndex].scraped = false;
             _this3.stack[browserIndex].used = false;
@@ -476,19 +508,19 @@ class Scraper {
 
             if (_this3.stack[browserIndex].errors >= 5) {
               yield _this3.createNewBrowser({ browserObject: _this3.stack[browserIndex] }).then((() => {
-                var _ref19 = _asyncToGenerator(function* (newBrowser) {
+                var _ref21 = _asyncToGenerator(function* (newBrowser) {
                   _this3.stack[browserIndex] = newBrowser;
                 });
 
-                return function (_x13) {
-                  return _ref19.apply(this, arguments);
+                return function (_x15) {
+                  return _ref21.apply(this, arguments);
                 };
               })()).catch(function () {});
             }
           });
 
-          return function (_x12) {
-            return _ref18.apply(this, arguments);
+          return function (_x14) {
+            return _ref20.apply(this, arguments);
           };
         })()).then(_asyncToGenerator(function* () {
           _this3.options.logUpdateDataProgress({

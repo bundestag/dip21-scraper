@@ -159,24 +159,26 @@ const logUpdateDataProgress = async ({ value, browsers }) => {
       }
       return scraped;
     }),
-    cpercent: chalk.hsl(getColor(1 - bar3.current / bar3.total), 100, 50)(`${(bar3.current / bar3.total * 100).toFixed(1)}%`),
+    cpercent: chalk.hsl(getColor(1 - bar3.current / bar3.total), 100, 50)(`${(bar3.current / bar3.total * 100).toFixed(2)}%`),
   });
 };
 
 const outScraperData = async ({ procedureId, procedureData }) => {
-  const directory = `files/${procedureData.VORGANG.WAHLPERIODE}/${
-    procedureData.VORGANG.VORGANGSTYP
-  }`;
-  await fs.ensureDir(directory);
-  jsonfile.writeFile(
-    `${directory}/${procedureId}.json`,
-    procedureData,
-    {
-      spaces: 2,
-      EOL: '\r\n',
-    },
-    (/* err */) => {},
-  );
+  if (procedureData) {
+    const directory = `files/${procedureData.VORGANG.WAHLPERIODE}/${
+      procedureData.VORGANG.VORGANGSTYP
+    }`;
+    await fs.ensureDir(directory);
+    jsonfile.writeFile(
+      `${directory}/${procedureId}.json`,
+      procedureData,
+      {
+        spaces: 2,
+        EOL: '\r\n',
+      },
+      (/* err */) => {},
+    );
+  }
 };
 
 // HANDLE EXIT
@@ -210,11 +212,10 @@ process.on('SIGINT', async () => {
 
 const logError = ({ error }) => {
   if (error.type === 'fatal' && error.message) {
-    console.log(error);
+    console.log(error.message);
   }
   switch (error.code) {
     case 1004:
-
       break;
 
     default:

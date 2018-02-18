@@ -7,6 +7,7 @@ const Url = require('url');
 const Querystring = require('querystring');
 const _ = require('lodash');
 const chalk = require('chalk');
+const Page = require('puppeteer/lib/Page');
 
 const x2j = new X2JS();
 
@@ -60,10 +61,15 @@ class Scraper {
       },
     },
   };
+  browser;
 
   async scrape(options) {
     this.options = { ...this.options, ...options };
     const { browserStackSize } = this.options;
+
+    this.browser = await puppeteer.launch({ timeout: this.options.defaultTimeout });
+
+
     // this.retries = -this.options.browserStackSize();
     this.stack = await Promise.all(this.createBrowserStack({
       size: browserStackSize,
@@ -89,13 +95,19 @@ class Scraper {
       retries: this.retries,
       maxRetries: this.options.maxRetries,
     });
-    this.options.logStopDataProgress();
-
+    this.options.logStopSearchProgress();
+    
     await Promise.all(this.stack.map(async (browser, browserIndex) => {
       await this.startAnalyse(browserIndex);
     })).then(async () => {
+      this.options.logUpdateDataProgress({
+        value: this.completedLinks,
+        retries: this.retries,
+        maxRetries: this.options.maxRetries,
+        browsers: this.stack,
+      });
       // Finalize
-      this.options.logStopSearchProgress();
+      this.options.logStopDataProgress();
       await this.finalize();
       this.options.logFinished();
     });
@@ -136,7 +148,6 @@ class Scraper {
             error.code = 1002;
             throw error;
           });
-        this.options.logUpdateSearchProgress(this.status);
       } catch (error) {
         this.options.logError({ error });
         this.filters[filterIndex].scraped = false;
@@ -144,12 +155,12 @@ class Scraper {
         if (this.stack[browserIndex].errors >= 5) {
           await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then((newBrowser) => {
             this.stack[browserIndex] = newBrowser;
-            this.options.logUpdateSearchProgress(this.status);
           }).catch((error2) => {
             this.options.logError({ error2, function: 'getProceduresFromSearch' });
           });
         }
       } finally {
+        this.options.logUpdateSearchProgress(this.status);
         await this.getProceduresFromSearch({ browser, browserIndex });
       }
     }
@@ -198,9 +209,9 @@ class Scraper {
 
   finalize = async () => {
     await Promise.all(this.stack.map(async (b) => {
-      await b.page.close();
-      await b.browser.close();
+      await this.closePage(b);
     }));
+    await this.browser.close();
 
     this.stack = [];
     this.availableFilters = {
@@ -225,21 +236,31 @@ class Scraper {
 
   createBrowserStack = ({ size }) => [...Array(size)].map(async () => this.createNewBrowser());
 
-  createNewBrowser = async ({ browserObject = {} } = {}) => {
+  newPageWithNewContext = async ({ browser = this.browser }) => {
+    const { browserContextId } = await browser._connection.send('Target.createBrowserContext');
+    const { targetId } = await browser._connection.send('Target.createTarget', { url: 'about:blank', browserContextId });
+    const target = await browser._targets.get(targetId);
+    const client = await browser._connection.createSession(targetId);
+    const page = await Page.create(client, target, browser._ignoreHTTPSErrors, browser._screenshotTaskQueue);
+    page.setDefaultNavigationTimeout(this.options.defaultTimeout);
+    page.browserContextId = browserContextId;
+    return page;
+  }
+
+  closePage = async ({ browser, page }) => {
+    if (page.browserContextId !== undefined) {
+      await browser._connection.send('Target.disposeBrowserContext', { browserContextId: page.browserContextId });
+    }
+    await page.close();
+  }
+
+  createNewBrowser = async ({ browserObject = { } } = {}) => {
     const { timeoutStart } = this.options;
-    if (browserObject.browser) {
-      await browserObject.page.close().catch((error) => {
-        throw {
-          error,
-          function: 'createNewBrowser',
-          code: 1003,
-        };
-      });
-      await browserObject.browser.close();
+    if (browserObject.page) {
+      await this.closePage(browserObject);
     }
     try {
-      const browser = await puppeteer.launch({ timeout: this.options.defaultTimeout });
-      const page = await browser.newPage();
+      const page = await this.newPageWithNewContext(browserObject);
       await page.setRequestInterception(true);
       page.on('request', (request) => {
         switch (request.resourceType()) {
@@ -258,7 +279,7 @@ class Scraper {
         timeout: timeoutStart,
       });
       return {
-        browser,
+        browser: this.browser,
         page,
         used: false,
         scraped: 0,
@@ -470,7 +491,6 @@ class Scraper {
         const curResultInfos = await this.getResultInfos({ browser });
         this.status.search.pages.completed += 1;
         pagesCompleted += 1;
-        this.options.logUpdateSearchProgress(this.status);
         if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
           await this.clickWait({
             browser,
@@ -487,6 +507,8 @@ class Scraper {
           type: 'timeout',
           code: 1008,
         };
+      } finally {
+        this.options.logUpdateSearchProgress(this.status);
       }
     }
   };
