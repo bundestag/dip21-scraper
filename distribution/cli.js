@@ -178,7 +178,7 @@ const logUpdateDataProgress = (() => {
       estf: chalk.hsl(getColor(1 - bar3.current / bar3.total), 100, 50)(prettyMs(_.toInteger((new Date() - bar3.start) / bar3.current * (bar3.total - bar3.current)), { compact: true })),
       duration: prettyMs(_.toInteger(new Date() - bar3.start), { secDecimalDigits: 0 }),
       browserErrors: browsers.map(function ({ errors }) {
-        return chalk.hsl(getColor(errors / 5), 100, 50)(errors);
+        return chalk.hsl(getColor(errors / 4), 100, 50)(errors);
       }),
       browsersRunning: browsers.reduce(function (count, { used }) {
         return count + (used ? 1 : 0);
@@ -191,7 +191,7 @@ const logUpdateDataProgress = (() => {
         }
         return scraped;
       }),
-      cpercent: chalk.hsl(getColor(1 - bar3.current / bar3.total), 100, 50)(`${(bar3.current / bar3.total * 100).toFixed(1)}%`)
+      cpercent: chalk.hsl(getColor(1 - bar3.current / bar3.total), 100, 50)(`${(bar3.current / bar3.total * 100).toFixed(2)}%`)
     });
   });
 
@@ -202,12 +202,14 @@ const logUpdateDataProgress = (() => {
 
 const outScraperData = (() => {
   var _ref8 = _asyncToGenerator(function* ({ procedureId, procedureData }) {
-    const directory = `files/${procedureData.VORGANG.WAHLPERIODE}/${procedureData.VORGANG.VORGANGSTYP}`;
-    yield fs.ensureDir(directory);
-    jsonfile.writeFile(`${directory}/${procedureId}.json`, procedureData, {
-      spaces: 2,
-      EOL: '\r\n'
-    }, function () /* err */{});
+    if (procedureData) {
+      const directory = `files/${procedureData.VORGANG.WAHLPERIODE}/${procedureData.VORGANG.VORGANGSTYP}`;
+      yield fs.ensureDir(directory);
+      jsonfile.writeFile(`${directory}/${procedureId}.json`, procedureData, {
+        spaces: 2,
+        EOL: '\r\n'
+      }, function () /* err */{});
+    }
   });
 
   return function outScraperData(_x6) {
@@ -246,9 +248,16 @@ process.on('SIGINT', _asyncToGenerator(function* () {
 
 const logError = ({ error }) => {
   if (error.type === 'fatal' && error.message) {
-    console.log(error);
+    console.log(error.message);
   }
-  log.error(error);
+  switch (error.code) {
+    case 1004:
+      break;
+
+    default:
+      log.error(error);
+      break;
+  }
 };
 
 scraper.scrape({
