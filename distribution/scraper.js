@@ -108,8 +108,7 @@ class Scraper {
             }).catch((() => {
               var _ref3 = _asyncToGenerator(function* (error) {
                 _this.filters[filterIndex].scraped = false;
-                error.code = 1002;
-                throw error;
+                throw _extends({}, error, { code: 1002 });
               });
 
               return function (_x3) {
@@ -199,7 +198,7 @@ class Scraper {
         if (page.browserContextId !== undefined) {
           yield browser._connection.send('Target.disposeBrowserContext', { browserContextId: page.browserContextId });
         }
-        yield page.close();
+        yield page.close().catch(function () {});
       });
 
       return function (_x6) {
@@ -374,8 +373,7 @@ class Scraper {
             })) === 'Es konnte kein Datensatz gefunden werden.') {
               hasEntries = false;
             } else {
-              error.code = 1007;
-              throw error;
+              throw _extends({}, error, { code: 1007 });
             }
           });
 
