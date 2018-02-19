@@ -96,7 +96,7 @@ class Scraper {
       maxRetries: this.options.maxRetries,
     });
     this.options.logStopSearchProgress();
-    
+
     await Promise.all(this.stack.map(async (browser, browserIndex) => {
       await this.startAnalyse(browserIndex);
     })).then(async () => {
@@ -145,8 +145,7 @@ class Scraper {
           })
           .catch(async (error) => {
             this.filters[filterIndex].scraped = false;
-            error.code = 1002;
-            throw error;
+            throw { ...error, code: 1002 };
           });
       } catch (error) {
         this.options.logError({ error });
@@ -251,7 +250,7 @@ class Scraper {
     if (page.browserContextId !== undefined) {
       await browser._connection.send('Target.disposeBrowserContext', { browserContextId: page.browserContextId });
     }
-    await page.close();
+    await page.close().catch(() => {});
   }
 
   createNewBrowser = async ({ browserObject = { } } = {}) => {
@@ -474,8 +473,7 @@ class Scraper {
       ) {
         hasEntries = false;
       } else {
-        error.code = 1007;
-        throw error;
+        throw { ...error, code: 1007 };
       }
     });
     if (!hasEntries || (await this.isSingleResult({ browser }))) {
