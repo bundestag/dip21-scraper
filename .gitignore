@@ -3,3 +3,4 @@ files/*
 # distribution
 screenshot.png
 *.log
+/procedures.json
