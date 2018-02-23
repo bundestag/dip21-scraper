@@ -433,12 +433,9 @@ class Scraper {
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       });
 
-      console.log('before stack');
-      // this.retries = -this.options.browserStackSize();
       _this2.stack = yield Promise.all(_this2.createBrowserStack({
         size: browserStackSize
       }));
-      console.log('after stack - before filter');
       _this2.availableFilters = yield _this2.takeSearchableValues().catch(function (error) {
         _this2.finalize();
         throw {
@@ -448,9 +445,7 @@ class Scraper {
           code: 1001
         };
       });
-      console.log('after filter - before config filters');
       const filtersSelected = yield _this2.configureFilter(_this2.availableFilters);
-      console.log('after config filters - before start search');
       _this2.options.logStartSearchProgress(_this2.status);
       yield _this2.collectProcedures(filtersSelected);
 
