@@ -430,7 +430,6 @@ class Scraper {
 
       _this2.browser = yield puppeteer.launch({
         timeout: _this2.options.defaultTimeout,
-        headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       });
 
