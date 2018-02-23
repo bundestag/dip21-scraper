@@ -67,14 +67,17 @@ class Scraper {
     this.options = { ...this.options, ...options };
     const { browserStackSize } = this.options;
 
-    this.browser = await puppeteer.launch({ timeout: this.options.defaultTimeout });
+    this.browser = await puppeteer.launch({
+      timeout: this.options.defaultTimeout,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
 
-
+    console.log('before stack');
     // this.retries = -this.options.browserStackSize();
     this.stack = await Promise.all(this.createBrowserStack({
       size: browserStackSize,
     }));
-
+    console.log('after stack - before filter');
     this.availableFilters = await this.takeSearchableValues().catch((error) => {
       this.finalize();
       throw {
@@ -84,7 +87,9 @@ class Scraper {
         code: 1001,
       };
     });
+    console.log('after filter - before config filters');
     const filtersSelected = await this.configureFilter(this.availableFilters);
+    console.log('after config filters - before start search');
     this.options.logStartSearchProgress(this.status);
     await this.collectProcedures(filtersSelected);
 
