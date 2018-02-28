@@ -435,13 +435,14 @@ class Scraper {
       _this2.options = _extends({}, _this2.options, options);
       const { browserStackSize } = _this2.options;
 
-      _this2.browser = yield puppeteer.launch({ timeout: _this2.options.defaultTimeout });
+      _this2.browser = yield puppeteer.launch({
+        timeout: _this2.options.defaultTimeout,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
 
-      // this.retries = -this.options.browserStackSize();
       _this2.stack = yield Promise.all(_this2.createBrowserStack({
         size: browserStackSize
       }));
-
       _this2.availableFilters = yield _this2.takeSearchableValues().catch(function (error) {
         _this2.finalize();
         throw {
