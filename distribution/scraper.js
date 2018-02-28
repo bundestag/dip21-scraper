@@ -196,7 +196,14 @@ class Scraper {
     this.closePage = (() => {
       var _ref8 = _asyncToGenerator(function* ({ browser, page }) {
         if (page.browserContextId !== undefined) {
-          yield browser._connection.send('Target.disposeBrowserContext', { browserContextId: page.browserContextId });
+          yield browser._connection.send('Target.disposeBrowserContext', { browserContextId: page.browserContextId }).catch(function (error) {
+            _this.options.logError({
+              error: {
+                error,
+                function: 'closePage'
+              }
+            });
+          });
         }
         yield page.close().catch(function () {});
       });
