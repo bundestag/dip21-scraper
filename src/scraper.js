@@ -248,7 +248,14 @@ class Scraper {
 
   closePage = async ({ browser, page }) => {
     if (page.browserContextId !== undefined) {
-      await browser._connection.send('Target.disposeBrowserContext', { browserContextId: page.browserContextId });
+      await browser._connection.send('Target.disposeBrowserContext', { browserContextId: page.browserContextId }).catch((error) => {
+        this.options.logError({
+          error: {
+            error,
+            function: 'closePage',
+          },
+        });
+      });
     }
     await page.close().catch(() => {});
   }
