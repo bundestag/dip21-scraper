@@ -12,7 +12,8 @@
     "start": "babel-node src/cli.js",
     "lint": "eslint ./src",
     "build": "babel src --out-dir distribution",
-    "prepublish": "npm run build"
+    "prepublish": "npm run build",
+    "requesttest": "babel-node src/requesttest.js"
   },
   "dependencies": {
     "ascii-progress": "^1.0.5",
@@ -40,6 +41,8 @@
     "eslint": "^4.17.0",
     "eslint-config-airbnb-base": "^12.1.0",
     "eslint-plugin-import": "^2.8.0",
-    "prettier-eslint": "^8.8.1"
+    "prettier-eslint": "^8.8.1",
+    "request": "^2.83.0",
+    "request-cookies": "^1.1.0"
   }
 }

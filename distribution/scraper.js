@@ -425,17 +425,20 @@ class Scraper {
     var _this2 = this;
 
     return _asyncToGenerator(function* () {
+      console.log('a');
       _this2.options = _extends({}, _this2.options, options);
+      console.log('b');
       const { browserStackSize } = _this2.options;
-
+      console.log('c');
       _this2.browser = yield puppeteer.launch({
         timeout: _this2.options.defaultTimeout,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       });
-
+      console.log('d');
       _this2.stack = yield Promise.all(_this2.createBrowserStack({
         size: browserStackSize
       }));
+      console.log('e');
       _this2.availableFilters = yield _this2.takeSearchableValues().catch(function (error) {
         _this2.finalize();
         throw {
@@ -445,10 +448,13 @@ class Scraper {
           code: 1001
         };
       });
+      console.log('f');
       const filtersSelected = yield _this2.configureFilter(_this2.availableFilters);
+      console.log('g');
       _this2.options.logStartSearchProgress(_this2.status);
+      console.log('h');
       yield _this2.collectProcedures(filtersSelected);
-
+      console.log('i');
       // Data
       _this2.completedLinks = 0;
       yield _this2.options.logStartDataProgress({
@@ -456,8 +462,9 @@ class Scraper {
         retries: _this2.retries,
         maxRetries: _this2.options.maxRetries
       });
+      console.log('j');
       _this2.options.logStopSearchProgress();
-
+      console.log('k');
       yield Promise.all(_this2.stack.map((() => {
         var _ref17 = _asyncToGenerator(function* (browser, browserIndex) {
           yield _this2.startAnalyse(browserIndex);
