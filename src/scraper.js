@@ -208,7 +208,7 @@ class Scraper {
 
   finalize = async () => {
     await Promise.all(this.stack.map(async (b) => {
-      await this.closePage(b);
+      await this.closePage(b).catch();
     }));
     await this.browser.close();
 
@@ -263,7 +263,7 @@ class Scraper {
   createNewBrowser = async ({ browserObject = { } } = {}) => {
     const { timeoutStart } = this.options;
     if (browserObject.page) {
-      await this.closePage(browserObject);
+      await this.closePage(browserObject).catch();
     }
     try {
       const page = await this.newPageWithNewContext(browserObject);
