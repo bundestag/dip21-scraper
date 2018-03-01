@@ -142,7 +142,7 @@ class Scraper {
     this.finalize = _asyncToGenerator(function* () {
       yield Promise.all(_this.stack.map((() => {
         var _ref5 = _asyncToGenerator(function* (b) {
-          yield _this.closePage(b);
+          yield _this.closePage(b).catch();
         });
 
         return function (_x4) {
@@ -217,7 +217,7 @@ class Scraper {
       var _ref9 = _asyncToGenerator(function* ({ browserObject = {} } = {}) {
         const { timeoutStart } = _this.options;
         if (browserObject.page) {
-          yield _this.closePage(browserObject);
+          yield _this.closePage(browserObject).catch();
         }
         try {
           const page = yield _this.newPageWithNewContext(browserObject);
