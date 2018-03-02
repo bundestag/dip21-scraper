@@ -236,7 +236,7 @@ scraper
     logFinished: program.quiet ? () => {} : logFinished,
     outScraperData,
     browserStackSize: _.toInteger(program.stacksize),
-    logError: program.quiet ? () => {} : logError,
+    // logError: program.quiet ? () => {} : logError,
   })
   .catch((error) => {
     console.error(error);

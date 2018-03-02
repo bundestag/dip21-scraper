@@ -438,8 +438,8 @@ class Scraper {
           searchResultBodyToAnalyse = tmpBody;
         }
 
-        const pageLinks = browser.browser.getEntries({ body: searchResultBodyToAnalyse });
-
+        let pageLinks = browser.browser.getEntries({ body: searchResultBodyToAnalyse });
+        pageLinks = pageLinks.filter(link => this.options.doScrape({ data: link }));
         // const pageLinks = await this.getEntriesFromPage({ browser });
         this.procedures.push(...pageLinks);
         this.status.search.pages.completed += 1;

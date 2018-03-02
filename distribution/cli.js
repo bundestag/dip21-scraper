@@ -270,8 +270,8 @@ scraper.scrape({
   logUpdateDataProgress: program.quiet ? () => {} : logUpdateDataProgress,
   logFinished: program.quiet ? () => {} : logFinished,
   outScraperData,
-  browserStackSize: _.toInteger(program.stacksize),
-  logError: program.quiet ? () => {} : logError
+  browserStackSize: _.toInteger(program.stacksize)
+  // logError: program.quiet ? () => {} : logError,
 }).catch(error => {
   console.error(error);
 });

@@ -374,8 +374,10 @@ class Scraper {
               searchResultBodyToAnalyse = tmpBody;
             }
 
-            const pageLinks = browser.browser.getEntries({ body: searchResultBodyToAnalyse });
-
+            let pageLinks = browser.browser.getEntries({ body: searchResultBodyToAnalyse });
+            pageLinks = pageLinks.filter(function (link) {
+              return _this.options.doScrape({ data: link });
+            });
             // const pageLinks = await this.getEntriesFromPage({ browser });
             _this.procedures.push(...pageLinks);
             _this.status.search.pages.completed += 1;
