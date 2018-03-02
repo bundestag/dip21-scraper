@@ -2,6 +2,10 @@
 
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
+var _fs = require('fs');
+
+var _fs2 = _interopRequireDefault(_fs);
+
 var _DipBrowser = require('./DipBrowser');
 
 var _DipBrowser2 = _interopRequireDefault(_DipBrowser);
@@ -111,6 +115,7 @@ class Scraper {
             yield _this.startSearch({
               browser, formData, formMethod, formAction
             });
+            _this.status.search.instances.completed += 1;
 
             // await this.goToSearch({ browser });
             // await this.selectPeriod({ browser, periodName: this.filters[filterIndex].period });
@@ -338,7 +343,22 @@ class Scraper {
         });
 
         const resultInfos = yield browser.browser.getResultInfo({ body: searchResultBody });
-        // const resultInfos = await this.getResultInfos({ browser });
+
+        if (!resultInfos) {
+          return;
+        } else if (resultInfos === 'isEntry') {
+          _fs2.default.writeFile('html.html', searchResultBody, function () {});
+          const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
+          // console.log(searchResultBody)
+          const vorgangId = searchResultBody.match(procedureIdRegex)[1];
+          _this.procedures.push({
+            id: vorgangId.split('-')[1],
+            url: `/dip21.web/searchProcedures/simple_search_list.do?selId=${vorgangId.split('-')[1]}&method=select&offset=0&anzahl=200&sort=3&direction=desc`,
+            scraped: false
+          });
+          return;
+        }
+
         _this.status.search.pages.sum += resultInfos.pageSum;
         let pagesCompleted = 0;
         let searchResultBodyToAnalyse = searchResultBody;

@@ -1,3 +1,5 @@
+import fs from 'fs';
+
 const request = require('request');
 const cheerio = require('cheerio');
 const _ = require('lodash');
@@ -97,10 +99,19 @@ class DipBrowser {
 
   getResultInfo = async ({ body }) => {
     const $ = cheerio.load(body);
+    if (
+      $('#inhaltsbereich > div.inhalt > div.contentBox > fieldset.field.infoField > ul > li')
+        .length > 0
+    ) {
+      return false;
+    }
     const reg = /Seite (\d*) von (\d*) \(Treffer (\d*) bis (\d*) von (\d*)\)/;
     const paginator = $('#inhaltsbereich')
       .html()
       .match(reg);
+    if (!paginator) {
+      return 'isEntry';
+    }
     return {
       pageCurrent: _.toInteger(paginator[1]),
       pageSum: _.toInteger(paginator[2]),

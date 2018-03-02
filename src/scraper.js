@@ -1,6 +1,7 @@
 /* eslint-disable max-len */
 /* eslint-disable no-throw-literal */
 
+import fs from 'fs';
 import DipBrowser from './DipBrowser';
 
 const $ = require('cheerio');
@@ -140,6 +141,7 @@ class Scraper {
         await this.startSearch({
           browser, formData, formMethod, formAction,
         });
+        this.status.search.instances.completed += 1;
 
         // await this.goToSearch({ browser });
         // await this.selectPeriod({ browser, periodName: this.filters[filterIndex].period });
@@ -405,7 +407,22 @@ class Scraper {
     });
 
     const resultInfos = await browser.browser.getResultInfo({ body: searchResultBody });
-    // const resultInfos = await this.getResultInfos({ browser });
+
+    if (!resultInfos) {
+      return;
+    } else if (resultInfos === 'isEntry') {
+      fs.writeFile('html.html', searchResultBody, () => {});
+      const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
+      // console.log(searchResultBody)
+      const vorgangId = searchResultBody.match(procedureIdRegex)[1];
+      this.procedures.push({
+        id: vorgangId.split('-')[1],
+        url: `/dip21.web/searchProcedures/simple_search_list.do?selId=${vorgangId.split('-')[1]}&method=select&offset=0&anzahl=200&sort=3&direction=desc`,
+        scraped: false,
+      });
+      return;
+    }
+
     this.status.search.pages.sum += resultInfos.pageSum;
     let pagesCompleted = 0;
     let searchResultBodyToAnalyse = searchResultBody;
@@ -497,7 +514,7 @@ class Scraper {
     }
 
     const dataProcedure = await this.getProcedureData({ html: procedureHtml });
-    
+
     const { body: entryRunningBody } = await dipBrowser.request({
       uri: `${this.urls.processRunning}${vorgangId}`,
     });
