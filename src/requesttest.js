@@ -1,21 +1,121 @@
 const request = require('request');
-const Cookie = require('request-cookies').Cookie;
+const cheerio = require('cheerio');
+const _ = require('lodash');
 
-let cookie = request.jar();
-const options = { method: 'GET', uri: 'https://dipbt.bundestag.de/dip21.web/bt', jar: cookie };
+class DipBrowser {
+  dipUrl = 'https://dipbt.bundestag.de';
+  startUrl = '/dip21.web/bt';
+  cookie = null;
 
-request(options, (err, response, body) => {
-    var rawcookies = response.headers['set-cookie'];
-    var JSESSIONID = null;
-    for (var i in rawcookies) {
-        var acookie = new Cookie(rawcookies[i]);
-        //console.log(acookie.key, acookie.value, acookie.expires);
-        if (acookie.key === 'JSESSIONID') {
-            JSESSIONID = acookie.value;
-        }
+  constructor() {
+    this.cookie = request.jar();
+  }
+
+  initialize = async () => {
+    await this.request({
+      ...this.defReqOpt,
+      uri: this.startUrl,
+    });
+  };
+
+  request = (opts) => {
+    const reqOptions = {
+      method: 'GET',
+      jar: this.cookie,
+      ...opts,
+    };
+
+    if (reqOptions.uri.substr(0, 4) !== 'http') {
+      reqOptions.uri = `${this.dipUrl}${reqOptions.uri}`;
     }
-    cookie.setCookie(options.uri, response.headers['set-cookie']);
-    // console.log(cookie);
-    const options2 = { method: 'GET', uri: 'https://dipbt.bundestag.de/dip21.web/searchProcedures.do', jar: cookie };
-    request(options2, (err, response, body) => { console.log(body); });
-});
+
+    return new Promise((resolve, reject) => {
+      request(reqOptions, (error, res, body) => {
+        if (!error && res.statusCode === 200) {
+          resolve({ res, body });
+        } else {
+          reject(error);
+        }
+      });
+    });
+  };
+
+  getBeratungsablaeufeSearchPage = async () => {
+    const { body } = await this.request({
+      uri: '/dip21.web/searchProcedures.do',
+    });
+    return body;
+  };
+
+  getSelectOptions = ({ $, selector }) =>
+    _.map($(selector).children(), ({ children, attribs: { value } }) => ({
+      name: children[0].data,
+      value,
+    }));
+
+  getBeratungsablaeufeSearchOptions = async ({ body }) => {
+    const $ = cheerio.load(body);
+    const wahlperioden = this.getSelectOptions({
+      $,
+      selector: '#ProceduresSimpleSearchForm #wahlperiode',
+    });
+    const vorgangstyp = this.getSelectOptions({
+      $,
+      selector: '#ProceduresSimpleSearchForm #includeVorgangstyp',
+    });
+    return {
+      wahlperioden,
+      vorgangstyp,
+    };
+  };
+
+  getBeratungsablaeufeSearchFormData = async ({ body }) => {
+    const $ = cheerio.load(body);
+    return $('#ProceduresSimpleSearchForm')
+      .serializeArray()
+      .reduce((obj, { name, value }) => ({ ...obj, [name]: value }), {});
+  };
+
+  getFirstSearchResultPage = async ({ body, searchData }) => {
+    const $ = cheerio.load(body);
+    const searchForm = $('#ProceduresSimpleSearchForm');
+    return this.request({
+      method: searchForm.attr('method'),
+      uri: searchForm.attr('action'),
+      form: searchData,
+    });
+  };
+
+  getEntries = ({ body }) => {
+    const $ = cheerio.load(body);
+    const entries = $('#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody tr').find($('a.linkIntern'));
+    return _.map(entries, entry => entry.attribs.href);
+  };
+}
+
+(async () => {
+  const browser = new DipBrowser();
+  await browser.initialize();
+
+  const searchBody = await browser.getBeratungsablaeufeSearchPage();
+
+  /* Only get possible filter Data  */
+  //   const searchOptions = await browser.getBeratungsablaeufeSearchOptions({ body: searchBody });
+  //   console.log(searchOptions);
+
+  const searchData = await browser.getBeratungsablaeufeSearchFormData({ body: searchBody });
+
+  /* suchoptionen einstellen */
+  searchData.wahlperiode = '';
+  searchData.method = 'Suchen';
+  searchData.anzahlTreffer = 200;
+
+  const { body: searchResult } = await browser.getFirstSearchResultPage({
+    body: searchBody,
+    searchData,
+  });
+
+  let entries = [];
+  entries = [...entries, ...browser.getEntries({ body: searchResult })];
+  console.log(entries);
+})();

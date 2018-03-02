@@ -18,6 +18,7 @@
   "dependencies": {
     "ascii-progress": "^1.0.5",
     "chalk": "^2.3.1",
+    "cheerio": "^1.0.0-rc.2",
     "colors": "^1.1.2",
     "commander": "^2.13.0",
     "fs-extra": "^5.0.0",
@@ -28,6 +29,8 @@
     "node-gyp": "^3.6.2",
     "pretty-ms": "^3.1.0",
     "puppeteer": "^1.0.0",
+    "request": "^2.83.0",
+    "request-cookies": "^1.1.0",
     "x2js": "^3.1.1"
   },
   "devDependencies": {
@@ -41,8 +44,6 @@
     "eslint": "^4.17.0",
     "eslint-config-airbnb-base": "^12.1.0",
     "eslint-plugin-import": "^2.8.0",
-    "prettier-eslint": "^8.8.1",
-    "request": "^2.83.0",
-    "request-cookies": "^1.1.0"
+    "prettier-eslint": "^8.8.1"
   }
 }
