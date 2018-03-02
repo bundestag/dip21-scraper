@@ -112,8 +112,20 @@ class DipBrowser {
 
   getEntries = ({ body }) => {
     const $ = cheerio.load(body);
-    const entries = $('#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody tr').find($('a.linkIntern'));
-    return _.map(entries, entry => entry.attribs.href);
+    const entries = $('#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody tr');
+
+    return _.map(entries, (entry) => {
+      const { href } = $(entry).find($('a.linkIntern'))[0].attribs;
+      const date = $(entry)
+        .find($('td:nth-child(4)'))
+        .text();
+      return {
+        id: href.match(/selId=(\d.*?)&/)[1],
+        url: href,
+        date,
+        scraped: false,
+      };
+    });
   };
 }
 

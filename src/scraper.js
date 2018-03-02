@@ -3,6 +3,7 @@
 
 import DipBrowser from './DipBrowser';
 
+const $ = require('cheerio');
 const X2JS = require('x2js');
 const Url = require('url');
 const Querystring = require('querystring');
@@ -82,7 +83,6 @@ class Scraper {
     });
     const filtersSelected = await this.configureFilter(this.availableFilters);
     this.options.logStartSearchProgress(this.status);
-    console.log('YEAH!!!', filtersSelected);
     await this.collectProcedures(filtersSelected);
 
     // Data
@@ -181,7 +181,7 @@ class Scraper {
       this.procedures[linkIndex].scraped = true;
       await this.saveJson({
         link: this.procedures[linkIndex].url,
-        page: this.stack[browserIndex].page,
+        dipBrowser: this.stack[browserIndex].browser,
       })
         .then(async () => {
           this.completedLinks += 1;
@@ -215,11 +215,6 @@ class Scraper {
   }
 
   finalize = async () => {
-    await Promise.all(this.stack.map(async (b) => {
-      await this.closePage(b);
-    }));
-    await this.browser.close();
-
     this.stack = [];
     this.availableFilters = {
       periods: [],
@@ -279,7 +274,7 @@ class Scraper {
       throw new Error(`Period must be type of "Array" or "function" witch return an array!\nYou give "${typeof this
         .options.selectOperationTypes}"`);
     }
-    if (selectedOperationTypes.includes('all') || selectedOperationTypes.length === 0) {
+    if (selectedOperationTypes.includes('Alle') || selectedOperationTypes.length === 0) {
       selectedOperationTypes = operationTypes
         .filter(({ name }) => name !== 'Alle')
         .map(({ number }) => number);
@@ -427,20 +422,11 @@ class Scraper {
         }
 
         const pageLinks = browser.browser.getEntries({ body: searchResultBodyToAnalyse });
-        console.log(pageLinks);
 
         // const pageLinks = await this.getEntriesFromPage({ browser });
         this.procedures.push(...pageLinks);
-        const curResultInfos = await this.getResultInfos({ browser });
         this.status.search.pages.completed += 1;
         pagesCompleted += 1;
-        if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
-          await this.clickWait({
-            browser,
-            selector:
-              '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input',
-          });
-        }
       } catch (error) {
         this.status.search.pages.sum -= resultInfos.pageSum;
         this.status.search.pages.completed -= pagesCompleted;
@@ -481,43 +467,24 @@ class Scraper {
     return links.filter(link => this.options.doScrape({ data: link }));
   }
 
-  async saveJson({ link, page }) {
-    const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
-    await page.goto(link).catch((error) => {
-      throw {
-        error,
-        type: 'timeout',
-        url: link,
-        function: 'saveJson',
-        code: 1010,
-      };
+  async saveJson({ link, dipBrowser }) {
+    const procedureIdRegex = /\[ID:&#xA0;(.*?)\]/;
+    const { body: entryBody } = await dipBrowser.request({
+      uri: link,
     });
-    let content;
-    try {
-      content = await page.evaluate(
-        sel => document.querySelector(sel).innerHTML,
-        '#inhaltsbereich',
-      );
-    } catch (error) {
-      throw {
-        error,
-        type: 'not found',
-        url: link,
-        function: 'saveJson',
-        code: 1011,
-      };
-    }
+
+
+    const procedureHtml = $('#inhaltsbereich', entryBody).html();
 
     let procedureId;
     try {
-      procedureId = content.match(procedureIdRegex)[1]; // eslint-disable-line
+      procedureId = procedureHtml.match(procedureIdRegex)[1]; // eslint-disable-line
     } catch (error) {
       throw {
         error,
         code: 1012,
       };
     }
-
     const urlObj = Url.parse(link);
     const queryObj = Querystring.parse(urlObj.query);
     const vorgangId = queryObj.selId;
@@ -529,17 +496,15 @@ class Scraper {
       };
     }
 
-    const dataProcedure = await Scraper.getProcedureData({ page });
-    await page.goto(`${this.urls.processRunning}${vorgangId}`).catch((error) => {
-      throw {
-        error,
-        type: 'timeout',
-        url: link,
-        function: 'saveJson',
-        code: 1014,
-      };
+    const dataProcedure = await this.getProcedureData({ html: procedureHtml });
+    
+    const { body: entryRunningBody } = await dipBrowser.request({
+      uri: `${this.urls.processRunning}${vorgangId}`,
     });
-    const dataProcedureRunning = await Scraper.getProcedureRunningData({ page });
+
+    const procedureRunningHtml = $('#inhaltsbereich', entryRunningBody).html();
+
+    const dataProcedureRunning = await Scraper.getProcedureRunningData({ html: procedureRunningHtml });
 
     const procedureData = {
       vorgangId,
@@ -549,39 +514,27 @@ class Scraper {
     this.options.outScraperData({ procedureId, procedureData });
   }
 
-  static async getProcedureData({ page }) {
-    const xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
-    const html = await page.content();
-    const xmlString = html.match(xmlRegex)[0].replace('<- VORGANGSABLAUF ->', '');
-    return x2j.xml2js(xmlString);
-  }
+   getProcedureData = async ({ html }) => {
+     const xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
+     const xmlString = html.match(xmlRegex)[0].replace('<- VORGANGSABLAUF ->', '');
+     return x2j.xml2js(xmlString);
+   }
 
-  static async getProcedureRunningData({ page }) {
-    const xmlRegex = /<VORGANGSABLAUF>(.|\n)*?<\/VORGANGSABLAUF>/;
-    const html = await page.content();
-    try {
-      const xmlString = html.match(xmlRegex)[0];
-      return x2j.xml2js(xmlString);
-    } catch (error) {
-      throw {
-        type: 'warning',
-        url: await page.url(),
-        error,
-        function: 'getProcedureRunningData',
-        code: 1015,
-      };
-    }
-  }
+   static async getProcedureRunningData({ html }) {
+     const xmlRegex = /<VORGANGSABLAUF>(.|\n)*?<\/VORGANGSABLAUF>/;
+     const xmlString = html.match(xmlRegex)[0];
+     return x2j.xml2js(xmlString);
+   }
 
-  clickWait({ browser, selector }) {
-    return Promise.all([
-      browser.page.click(selector),
-      browser.page.waitForNavigation({
-        waitUntil: ['domcontentloaded'],
-      }),
-      browser.page.waitForSelector('#footer', { timeout: this.options.timeoutSearch() }),
-    ]);
-  }
+   clickWait({ browser, selector }) {
+     return Promise.all([
+       browser.page.click(selector),
+       browser.page.waitForNavigation({
+         waitUntil: ['domcontentloaded'],
+       }),
+       browser.page.waitForSelector('#footer', { timeout: this.options.timeoutSearch() }),
+     ]);
+   }
 }
 
 module.exports = Scraper;
