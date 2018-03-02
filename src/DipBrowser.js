@@ -59,10 +59,16 @@ class DipBrowser {
       $,
       selector: '#ProceduresSimpleSearchForm #wahlperiode',
     });
-    const vorgangstyp = this.getSelectOptions({
+    let vorgangstyp = this.getSelectOptions({
       $,
       selector: '#ProceduresSimpleSearchForm #includeVorgangstyp',
     });
+
+    vorgangstyp = vorgangstyp.map(e => ({
+      ...e,
+      number: e.name.split(' - ')[0],
+    }));
+
     return {
       wahlperioden,
       vorgangstyp,
@@ -71,19 +77,37 @@ class DipBrowser {
 
   getBeratungsablaeufeSearchFormData = async ({ body }) => {
     const $ = cheerio.load(body);
-    return $('#ProceduresSimpleSearchForm')
+    const formData = $('#ProceduresSimpleSearchForm')
       .serializeArray()
       .reduce((obj, { name, value }) => ({ ...obj, [name]: value }), {});
+    const searchForm = $('#ProceduresSimpleSearchForm');
+    return {
+      formData,
+      formMethod: searchForm.attr('method'),
+      formAction: searchForm.attr('action'),
+    };
   };
 
-  getFirstSearchResultPage = async ({ body, searchData }) => {
-    const $ = cheerio.load(body);
-    const searchForm = $('#ProceduresSimpleSearchForm');
-    return this.request({
-      method: searchForm.attr('method'),
-      uri: searchForm.attr('action'),
-      form: searchData,
+  getSearchResultPage = async ({ formMethod, formAction, formData }) =>
+    this.request({
+      method: formMethod,
+      uri: formAction,
+      form: formData,
     });
+
+  getResultInfo = async ({ body }) => {
+    const $ = cheerio.load(body);
+    const reg = /Seite (\d*) von (\d*) \(Treffer (\d*) bis (\d*) von (\d*)\)/;
+    const paginator = $('#inhaltsbereich')
+      .html()
+      .match(reg);
+    return {
+      pageCurrent: _.toInteger(paginator[1]),
+      pageSum: _.toInteger(paginator[2]),
+      entriesFrom: _.toInteger(paginator[3]),
+      entriesTo: _.toInteger(paginator[4]),
+      entriesSum: _.toInteger(paginator[5]),
+    };
   };
 
   getEntries = ({ body }) => {
@@ -93,29 +117,39 @@ class DipBrowser {
   };
 }
 
-(async () => {
-  const browser = new DipBrowser();
-  await browser.initialize();
+export default DipBrowser;
 
-  const searchBody = await browser.getBeratungsablaeufeSearchPage();
+// (async () => {
+//   const browser = new DipBrowser();
+//   await browser.initialize();
 
-  /* Only get possible filter Data  */
-  //   const searchOptions = await browser.getBeratungsablaeufeSearchOptions({ body: searchBody });
-  //   console.log(searchOptions);
+//   const searchBody = await browser.getBeratungsablaeufeSearchPage();
 
-  const searchData = await browser.getBeratungsablaeufeSearchFormData({ body: searchBody });
+//   /* Only get possible filter Data  */
+//   // const searchOptions = await browser.getBeratungsablaeufeSearchOptions({
+//   //   body: searchBody
+//   // });
+//   //   console.log(searchOptions);
 
-  /* suchoptionen einstellen */
-  searchData.wahlperiode = '';
-  searchData.method = 'Suchen';
-  searchData.anzahlTreffer = 200;
+//   const { formData, formMethod, formAction } = await browser.getBeratungsablaeufeSearchFormData({
+//     body: searchBody,
+//   });
 
-  const { body: searchResult } = await browser.getFirstSearchResultPage({
-    body: searchBody,
-    searchData,
-  });
+//   /* suchoptionen einstellen */
+//   formData.wahlperiode = '';
+//   formData.method = 'Suchen';
+//   formData.anzahlTreffer = 2;
 
-  let entries = [];
-  entries = [...entries, ...browser.getEntries({ body: searchResult })];
-  console.log(entries);
-})();
+//   const { body: searchResultBody } = await browser.getSearchResultPage({
+//     formMethod,
+//     formAction,
+//     formData,
+//   });
+
+//   const resultInfo = await browser.getResultInfo({ body: searchResultBody });
+//   console.log(resultInfo);
+
+//   let entries = [];
+//   entries = [...entries, ...browser.getEntries({ body: searchResultBody })];
+//   // console.log(entries);
+// })();

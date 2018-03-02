@@ -1,13 +1,14 @@
 /* eslint-disable max-len */
 /* eslint-disable no-throw-literal */
 
-const puppeteer = require('puppeteer');
+import DipBrowser from './DipBrowser';
+
 const X2JS = require('x2js');
 const Url = require('url');
 const Querystring = require('querystring');
 const _ = require('lodash');
 const chalk = require('chalk');
-const Page = require('puppeteer/lib/Page');
+
 
 const x2j = new X2JS();
 
@@ -32,6 +33,7 @@ class Scraper {
     timeoutSearch: () => 5001,
     maxRetries: () => 20,
     defaultTimeout: 15000,
+    resultsPerPage: 200,
   };
 
   urls = {
@@ -66,12 +68,6 @@ class Scraper {
   async scrape(options) {
     this.options = { ...this.options, ...options };
     const { browserStackSize } = this.options;
-
-    this.browser = await puppeteer.launch({
-      timeout: this.options.defaultTimeout,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-
     this.stack = await Promise.all(this.createBrowserStack({
       size: browserStackSize,
     }));
@@ -86,6 +82,7 @@ class Scraper {
     });
     const filtersSelected = await this.configureFilter(this.availableFilters);
     this.options.logStartSearchProgress(this.status);
+    console.log('YEAH!!!', filtersSelected);
     await this.collectProcedures(filtersSelected);
 
     // Data
@@ -133,20 +130,31 @@ class Scraper {
     if (filterIndex !== -1) {
       this.filters[filterIndex].scraped = true;
       try {
-        await this.goToSearch({ browser });
-        await this.selectPeriod({ browser, periodName: this.filters[filterIndex].period });
-        await this.selectOperationTypes({
-          browser,
-          operationTypeNumber: this.filters[filterIndex].operationType,
+        const searchBody = await browser.browser.getBeratungsablaeufeSearchPage();
+        const { formData, formMethod, formAction } = await browser.browser.getBeratungsablaeufeSearchFormData({ body: searchBody });
+        formData.wahlperiode = this.filters[filterIndex].period;
+        formData.vorgangstyp = this.filters[filterIndex].operationType;
+        formData.method = 'Suchen';
+        formData.anzahlTreffer = this.options.resultsPerPage;
+
+        await this.startSearch({
+          browser, formData, formMethod, formAction,
         });
-        await this.startSearch({ browser })
-          .then(() => {
-            this.status.search.instances.completed += 1;
-          })
-          .catch(async (error) => {
-            this.filters[filterIndex].scraped = false;
-            throw { ...error, code: 1002 };
-          });
+
+        // await this.goToSearch({ browser });
+        // await this.selectPeriod({ browser, periodName: this.filters[filterIndex].period });
+        // await this.selectOperationTypes({
+        //   browser,
+        //   operationTypeNumber: this.filters[filterIndex].operationType,
+        // });
+        // await this.startSearch({ browser })
+        //   .then(() => {
+        //     this.status.search.instances.completed += 1;
+        //   })
+        //   .catch(async (error) => {
+        //     this.filters[filterIndex].scraped = false;
+        //     throw { ...error, code: 1002 };
+        //   });
       } catch (error) {
         this.options.logError({ error });
         this.filters[filterIndex].scraped = false;
@@ -235,88 +243,16 @@ class Scraper {
 
   createBrowserStack = ({ size }) => [...Array(size)].map(async () => this.createNewBrowser());
 
-  newPageWithNewContext = async ({ browser = this.browser }) => {
-    const { browserContextId } = await browser._connection.send('Target.createBrowserContext');
-    const { targetId } = await browser._connection.send('Target.createTarget', { url: 'about:blank', browserContextId });
-    const target = await browser._targets.get(targetId);
-    const client = await browser._connection.createSession(targetId);
-    const page = await Page.create(client, target, browser._ignoreHTTPSErrors, browser._screenshotTaskQueue);
-    page.setDefaultNavigationTimeout(this.options.defaultTimeout);
-    page.browserContextId = browserContextId;
-    return page;
-  }
-
-  closePage = async ({ browser, page }) => {
-    if (page.browserContextId !== undefined) {
-      await browser._connection.send('Target.disposeBrowserContext', { browserContextId: page.browserContextId }).catch((error) => {
-        this.options.logError({
-          error: {
-            error,
-            function: 'closePage',
-          },
-        });
-      });
-    }
-    await page.close().catch(() => {});
-  }
-
-  createNewBrowser = async ({ browserObject = { } } = {}) => {
-    const { timeoutStart } = this.options;
-    if (browserObject.page) {
-      await this.closePage(browserObject);
-    }
-    try {
-      const page = await this.newPageWithNewContext(browserObject);
-      await page.setRequestInterception(true);
-      page.on('request', (request) => {
-        switch (request.resourceType()) {
-          case 'image':
-          case 'script':
-          case 'stylesheet':
-            request.abort();
-            break;
-
-          default:
-            request.continue();
-            break;
-        }
-      });
-      await page.goto(this.urls.start, {
-        timeout: timeoutStart,
-      });
-      return {
-        browser: this.browser,
-        page,
-        used: false,
-        scraped: 0,
-        errors: 0,
-      };
-    } catch (error) {
-      this.options.logError({
-        error,
-        function: 'createNewBrowser',
-      });
-      return new Promise((resolve) => {
-        setTimeout(async () => {
-          resolve(await this.createNewBrowser({ browserObject }));
-        }, 10000);
-      });
-    }
+  createNewBrowser = async () => {
+    const browser = new DipBrowser();
+    await browser.initialize();
+    return {
+      browser,
+      used: false,
+      scraped: 0,
+      errors: 0,
+    };
   };
-
-  async goToSearch({ browser }) {
-    const cookies = await browser.page.cookies().catch((error) => {
-      throw {
-        error,
-        function: 'goToSearch',
-        code: 1004,
-      };
-    });
-    const jssessionCookie = cookies.filter(c => c.name === 'JSESSIONID');
-    await browser.page.goto(this.urls.search + jssessionCookie[0].value, {
-      timeout: this.options.timeoutSearch(),
-    });
-  }
 
   configureFilter = async ({ periods, operationTypes }) => {
     // Periods
@@ -349,7 +285,10 @@ class Scraper {
         .map(({ number }) => number);
     }
 
-    return { periods: selectedPeriods, operationTypes: selectedOperationTypes };
+    return {
+      periods: selectedPeriods.map(p => periods.find(({ name }) => name === p).value),
+      operationTypes: selectedOperationTypes.map(n => operationTypes.find(({ number }) => number === n).value),
+    };
   };
 
   async takePeriods({ browser }) {
@@ -402,43 +341,18 @@ class Scraper {
   getFreeBrowser = () => this.stack.find(({ used }) => !used);
 
   takeSearchableValues = async () => {
-    const browser = this.getFreeBrowser();
-    browser.used = true;
-    await this.goToSearch({ browser });
-    const periods = await this.takePeriods({ browser });
-    const operationTypes = await this.takeOperationTypes({ browser });
-    browser.used = false;
+    const browserObj = this.getFreeBrowser();
+    browserObj.used = true;
+    const searchBody = await browserObj.browser.getBeratungsablaeufeSearchPage();
+    const searchOptions = await browserObj.browser.getBeratungsablaeufeSearchOptions({
+      body: searchBody,
+    });
+    browserObj.used = false;
     return {
-      periods,
-      operationTypes,
+      periods: searchOptions.wahlperioden,
+      operationTypes: searchOptions.vorgangstyp,
     };
   };
-
-  async getResultInfos({ browser }) {
-    const reg = /Seite (\d*) von (\d*) \(Treffer (\d*) bis (\d*) von (\d*)\)/;
-    await browser.page
-      .waitForSelector('#footer', { timeout: this.options.timeoutSearch() })
-      .catch((error) => {
-        throw {
-          error,
-          code: 1006,
-          function: 'getResultInfos',
-        };
-      });
-    const resultsNumberString = await browser.page.evaluate(
-      sel => document.querySelector(sel).outerHTML,
-      '#inhaltsbereich',
-    );
-    const paginator = resultsNumberString.match(reg);
-
-    return {
-      pageCurrent: _.toInteger(paginator[1]),
-      pageSum: _.toInteger(paginator[2]),
-      entriesFrom: _.toInteger(paginator[3]),
-      entriesTo: _.toInteger(paginator[4]),
-      entriesSum: _.toInteger(paginator[5]),
-    };
-  }
 
   isSingleResult = async ({ browser }) => {
     try {
@@ -464,34 +378,58 @@ class Scraper {
     }
   };
 
-  startSearch = async ({ browser }) => {
+  startSearch = async ({
+    browser, formData, formMethod, formAction,
+  }) => {
     // await this.clickWait({ browser, selector: 'input#btnSuche' });
-    let hasEntries = true;
-    await Promise.all([
-      browser.page.click('input#btnSuche'),
-      browser.page.waitForSelector('#tabReiter0 > a', { timeout: 3000 }),
-      browser.page.waitForSelector('#footer'),
-    ]).catch(async (error) => {
-      if (
-        (await browser.page.$eval(
-          '#inhaltsbereich > div.inhalt > div.contentBox > fieldset.field.infoField > ul > li',
-          e => e.innerHTML.trim(),
-        )) === 'Es konnte kein Datensatz gefunden werden.'
-      ) {
-        hasEntries = false;
-      } else {
-        throw { ...error, code: 1007 };
-      }
+    const hasEntries = true;
+    // await Promise.all([
+    //   browser.page.click('input#btnSuche'),
+    //   browser.page.waitForSelector('#tabReiter0 > a', { timeout: 3000 }),
+    //   browser.page.waitForSelector('#footer'),
+    // ]).catch(async (error) => {
+    //   if (
+    //     (await browser.page.$eval(
+    //       '#inhaltsbereich > div.inhalt > div.contentBox > fieldset.field.infoField > ul > li',
+    //       e => e.innerHTML.trim(),
+    //     )) === 'Es konnte kein Datensatz gefunden werden.'
+    //   ) {
+    //     hasEntries = false;
+    //   } else {
+    //     throw { ...error, code: 1007 };
+    //   }
+    // });
+    // if (!hasEntries || (await this.isSingleResult({ browser }))) {
+    //   return;
+    // }
+
+    const { body: searchResultBody } = await browser.browser.getSearchResultPage({
+      formMethod,
+      formAction,
+      formData,
     });
-    if (!hasEntries || (await this.isSingleResult({ browser }))) {
-      return;
-    }
-    const resultInfos = await this.getResultInfos({ browser });
+
+    const resultInfos = await browser.browser.getResultInfo({ body: searchResultBody });
+    // const resultInfos = await this.getResultInfos({ browser });
     this.status.search.pages.sum += resultInfos.pageSum;
     let pagesCompleted = 0;
+    let searchResultBodyToAnalyse = searchResultBody;
     for (let i = resultInfos.pageCurrent; i <= resultInfos.pageSum; i += 1) {
       try {
-        const pageLinks = await this.getEntriesFromPage({ browser });
+        if (i !== 1) {
+          formData.offset = (i - 1) * this.options.resultsPerPage; // eslint-disable-line
+          const { body: tmpBody } = await browser.browser.getSearchResultPage({
+            formMethod,
+            formAction,
+            formData,
+          });
+          searchResultBodyToAnalyse = tmpBody;
+        }
+
+        const pageLinks = browser.browser.getEntries({ body: searchResultBodyToAnalyse });
+        console.log(pageLinks);
+
+        // const pageLinks = await this.getEntriesFromPage({ browser });
         this.procedures.push(...pageLinks);
         const curResultInfos = await this.getResultInfos({ browser });
         this.status.search.pages.completed += 1;

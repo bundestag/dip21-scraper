@@ -13,7 +13,7 @@
     "lint": "eslint ./src",
     "build": "babel src --out-dir distribution",
     "prepublish": "npm run build",
-    "requesttest": "babel-node src/requesttest.js"
+    "requesttest": "babel-node src/DipBrowser.js"
   },
   "dependencies": {
     "ascii-progress": "^1.0.5",
