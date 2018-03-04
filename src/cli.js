@@ -8,7 +8,7 @@ const jsonfile = require('jsonfile');
 const fs = require('fs-extra');
 // const ProgressBar = require('ascii-progress');
 const _ = require('lodash');
-// const prettyMs = require('pretty-ms');
+const prettyMs = require('pretty-ms');
 const chalk = require('chalk');
 const Log = require('log');
 
@@ -127,6 +127,7 @@ const logUpdateSearchProgress = async ({ search }) => {
 };
 
 let linksSum = 0;
+let startDate = new Date();
 
 const logStartDataProgress = async ({ sum }) => {
   process.stdout.write('\n');
@@ -173,7 +174,14 @@ const logUpdateDataProgress = async ({ value, browsers }) => {
 
   process.stdout.clearLine();
   process.stdout.cursorTo(0);
-  process.stdout.write(`Links: ${_.toInteger(value / linksSum * 100)}% | ${value}/${linksSum} | ${browsers.map(({ scraped }) => {
+  process.stdout.write(`Links: ${_.toInteger(value / linksSum * 100)}% | ${value}/${linksSum} | ${chalk.hsl(
+    getColor(1 - value / linksSum),
+    100,
+    50,
+  )(prettyMs(
+    _.toInteger((new Date() - startDate) / value * (linksSum - value)),
+    { compact: true },
+  ))} | ${browsers.map(({ scraped }) => {
     if (_.maxBy(browsers, 'scraped').scraped === scraped) {
       return chalk.green(scraped);
     } else if (_.minBy(browsers, 'scraped').scraped === scraped) {
