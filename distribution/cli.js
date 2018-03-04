@@ -196,6 +196,7 @@ scraper.scrape({
   selectOperationTypes,
   logUpdateSearchProgress: program.quiet ? () => {} : logUpdateSearchProgress,
   logStartDataProgress: program.quiet ? () => {} : logStartDataProgress,
+  logStopDataProgress: () => process.stdout.write('\n'),
   logUpdateDataProgress: program.quiet ? () => {} : logUpdateDataProgress,
   logFinished: program.quiet ? () => {} : logFinished,
   outScraperData,

@@ -126,8 +126,8 @@ class Scraper {
   };
 
   getProceduresFromSearch = async ({ browser, browserIndex }) => {
-    const filterIndex = this.filters.findIndex(({ scraped }) => !scraped);
-    if (filterIndex !== -1) {
+    while (this.filters.findIndex(({ scraped }) => !scraped) !== -1) {
+      const filterIndex = this.filters.findIndex(({ scraped }) => !scraped);
       this.filters[filterIndex].scraped = true;
       try {
         const searchBody = await browser.browser.getBeratungsablaeufeSearchPage();
@@ -152,10 +152,8 @@ class Scraper {
             this.options.logError({ error2, function: 'getProceduresFromSearch' });
           });
         }
-      } finally {
-        this.options.logUpdateSearchProgress(this.status);
-        await this.getProceduresFromSearch({ browser, browserIndex });
       }
+      this.options.logUpdateSearchProgress(this.status);
     }
     this.options.logUpdateSearchProgress(this.status);
   };

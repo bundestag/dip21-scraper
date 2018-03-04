@@ -95,10 +95,12 @@ class Scraper {
 
     this.getProceduresFromSearch = (() => {
       var _ref2 = _asyncToGenerator(function* ({ browser, browserIndex }) {
-        const filterIndex = _this.filters.findIndex(function ({ scraped }) {
+        while (_this.filters.findIndex(function ({ scraped }) {
           return !scraped;
-        });
-        if (filterIndex !== -1) {
+        }) !== -1) {
+          const filterIndex = _this.filters.findIndex(function ({ scraped }) {
+            return !scraped;
+          });
           _this.filters[filterIndex].scraped = true;
           try {
             const searchBody = yield browser.browser.getBeratungsablaeufeSearchPage();
@@ -123,10 +125,8 @@ class Scraper {
                 _this.options.logError({ error2, function: 'getProceduresFromSearch' });
               });
             }
-          } finally {
-            _this.options.logUpdateSearchProgress(_this.status);
-            yield _this.getProceduresFromSearch({ browser, browserIndex });
           }
+          _this.options.logUpdateSearchProgress(_this.status);
         }
         _this.options.logUpdateSearchProgress(_this.status);
       });
