@@ -6,9 +6,9 @@ const program = require('commander');
 const inquirer = require('inquirer');
 const jsonfile = require('jsonfile');
 const fs = require('fs-extra');
-const ProgressBar = require('ascii-progress');
+// const ProgressBar = require('ascii-progress');
 const _ = require('lodash');
-const prettyMs = require('pretty-ms');
+// const prettyMs = require('pretty-ms');
 const chalk = require('chalk');
 const Log = require('log');
 
@@ -29,9 +29,9 @@ program
 
 const scraper = new Scraper();
 
-let bar1;
-let bar2;
-let bar3;
+// let bar1;
+// let bar2;
+// let bar3;
 
 const selectPeriods = async ({ periods }) => {
   let selectedPeriod = program.periods;
@@ -90,44 +90,53 @@ const logFinished = async () => {
 };
 
 const logStartSearchProgress = async () => {
-  bar1 = new ProgressBar({
-    schema: 'filters [:bar] :percent :completed/:sum | :estf | :duration',
-    width: 20,
-  });
-  bar2 = new ProgressBar({
-    schema: 'pages [:bar] :percent :completed/:sum | :estf | :duration',
-    width: 20,
-  });
+  // bar1 = new ProgressBar({
+  //   schema: 'filters [:bar] :percent :completed/:sum | :estf | :duration',
+  //   width: 20,
+  // });
+  // bar2 = new ProgressBar({
+  //   schema: 'pages [:bar] :percent :completed/:sum | :estf | :duration',
+  //   width: 20,
+  // });
 };
 
 const logUpdateSearchProgress = async ({ search }) => {
-  bar1.tick(_.toInteger(search.instances.completed / search.instances.sum * 100 - bar1.current), {
-    completed: search.instances.completed,
-    sum: search.instances.sum,
-    estf: prettyMs(
-      _.toInteger((new Date() - bar1.start) / bar1.current * (bar1.total - bar1.current)),
-      { compact: true },
-    ),
-    duration: prettyMs(_.toInteger(new Date() - bar1.start), { secDecimalDigits: 0 }),
-  });
-  bar2.tick(_.toInteger(search.pages.completed / search.pages.sum * 100 - bar2.current), {
-    completed: search.pages.completed,
-    sum: search.pages.sum,
-    estf: prettyMs(
-      _.toInteger((new Date() - bar2.start) / bar2.current * (bar2.total - bar2.current)),
-      { compact: true },
-    ),
-    duration: prettyMs(_.toInteger(new Date() - bar2.start), { secDecimalDigits: 0 }),
-  });
+  // bar1.tick(_.toInteger(search.instances.completed / search.instances.sum * 100 - bar1.current), {
+  //   completed: search.instances.completed,
+  //   sum: search.instances.sum,
+  //   estf: prettyMs(
+  //     _.toInteger((new Date() - bar1.start) / bar1.current * (bar1.total - bar1.current)),
+  //     { compact: true },
+  //   ),
+  //   duration: prettyMs(_.toInteger(new Date() - bar1.start), { secDecimalDigits: 0 }),
+  // });
+  // bar2.tick(_.toInteger(search.pages.completed / search.pages.sum * 100 - bar2.current), {
+  //   completed: search.pages.completed,
+  //   sum: search.pages.sum,
+  //   estf: prettyMs(
+  //     _.toInteger((new Date() - bar2.start) / bar2.current * (bar2.total - bar2.current)),
+  //     { compact: true },
+  //   ),
+  //   duration: prettyMs(_.toInteger(new Date() - bar2.start), { secDecimalDigits: 0 }),
+  // });
+  process.stdout.clearLine();
+  process.stdout.cursorTo(0);
+  process.stdout.write(`Pages: ${_.toInteger(search.pages.completed / search.pages.sum * 100)}% | ${
+    search.pages.completed
+  }/${search.pages.sum} | Instances: ${search.instances.completed}/${search.instances.sum}`);
 };
 
+let linksSum = 0;
+
 const logStartDataProgress = async ({ sum }) => {
+  process.stdout.write('\n');
   console.log('links analysieren');
-  bar3 = new ProgressBar({
-    schema:
-      'links | :cpercent | :current/:total | :estf | :duration | :browsersRunning | :browsersScraped | :browserErrors ',
-    total: sum,
-  });
+  linksSum = sum;
+  // bar3 = new ProgressBar({
+  //   schema:
+  //     'links | :cpercent | :current/:total | :estf | :duration | :browsersRunning | :browsersScraped | :browserErrors ',
+  //   total: sum,
+  // });
 };
 
 function getColor(value) {
@@ -137,30 +146,41 @@ function getColor(value) {
 
 const logUpdateDataProgress = async ({ value, browsers }) => {
   // barData.update(value, { retries, maxRetries });
-  let tick = 0;
-  if (value > bar3.current) {
-    tick = 1;
-  } else if (value < bar3.current) {
-    tick = -1;
-  }
-  bar3.tick(tick, {
-    estf: chalk.hsl(getColor(1 - bar3.current / bar3.total), 100, 50)(prettyMs(
-      _.toInteger((new Date() - bar3.start) / bar3.current * (bar3.total - bar3.current)),
-      { compact: true },
-    )),
-    duration: prettyMs(_.toInteger(new Date() - bar3.start), { secDecimalDigits: 0 }),
-    browserErrors: browsers.map(({ errors }) => chalk.hsl(getColor(errors / 4), 100, 50)(errors)),
-    browsersRunning: browsers.reduce((count, { used }) => count + (used ? 1 : 0), 0),
-    browsersScraped: browsers.map(({ scraped }) => {
-      if (_.maxBy(browsers, 'scraped').scraped === scraped) {
-        return chalk.green(scraped);
-      } else if (_.minBy(browsers, 'scraped').scraped === scraped) {
-        return chalk.red(scraped);
-      }
-      return scraped;
-    }),
-    cpercent: chalk.hsl(getColor(1 - bar3.current / bar3.total), 100, 50)(`${(bar3.current / bar3.total * 100).toFixed(2)}%`),
-  });
+  // let tick = 0;
+  // if (value > bar3.current) {
+  //   tick = 1;
+  // } else if (value < bar3.current) {
+  //   tick = -1;
+  // }
+  // bar3.tick(tick, {
+  //   estf: chalk.hsl(getColor(1 - bar3.current / bar3.total), 100, 50)(prettyMs(
+  //     _.toInteger((new Date() - bar3.start) / bar3.current * (bar3.total - bar3.current)),
+  //     { compact: true },
+  //   )),
+  //   duration: prettyMs(_.toInteger(new Date() - bar3.start), { secDecimalDigits: 0 }),
+  //   browserErrors: browsers.map(({ errors }) => chalk.hsl(getColor(errors / 4), 100, 50)(errors)),
+  //   browsersRunning: browsers.reduce((count, { used }) => count + (used ? 1 : 0), 0),
+  //   browsersScraped: browsers.map(({ scraped }) => {
+  //     if (_.maxBy(browsers, 'scraped').scraped === scraped) {
+  //       return chalk.green(scraped);
+  //     } else if (_.minBy(browsers, 'scraped').scraped === scraped) {
+  //       return chalk.red(scraped);
+  //     }
+  //     return scraped;
+  //   }),
+  //   cpercent: chalk.hsl(getColor(1 - bar3.current / bar3.total), 100, 50)(`${(bar3.current / bar3.total * 100).toFixed(2)}%`),
+  // });
+
+  process.stdout.clearLine();
+  process.stdout.cursorTo(0);
+  process.stdout.write(`Links: ${_.toInteger(value / linksSum * 100)}% | ${value}/${linksSum} | ${browsers.map(({ scraped }) => {
+    if (_.maxBy(browsers, 'scraped').scraped === scraped) {
+      return chalk.green(scraped);
+    } else if (_.minBy(browsers, 'scraped').scraped === scraped) {
+      return chalk.red(scraped);
+    }
+    return scraped;
+  })} | ${browsers.map(({ errors }) => chalk.hsl(getColor(errors / 4), 100, 50)(errors))}`);
 };
 
 const outScraperData = async ({ procedureId, procedureData }) => {
@@ -236,7 +256,7 @@ scraper
     logFinished: program.quiet ? () => {} : logFinished,
     outScraperData,
     browserStackSize: _.toInteger(program.stacksize),
-    // logError: program.quiet ? () => {} : logError,
+    logError: console.log,
   })
   .catch((error) => {
     console.error(error);
