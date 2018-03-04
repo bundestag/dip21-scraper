@@ -2,10 +2,6 @@
 
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-var _fs = require('fs');
-
-var _fs2 = _interopRequireDefault(_fs);
-
 var _DipBrowser = require('./DipBrowser');
 
 var _DipBrowser2 = _interopRequireDefault(_DipBrowser);
@@ -116,21 +112,6 @@ class Scraper {
               browser, formData, formMethod, formAction
             });
             _this.status.search.instances.completed += 1;
-
-            // await this.goToSearch({ browser });
-            // await this.selectPeriod({ browser, periodName: this.filters[filterIndex].period });
-            // await this.selectOperationTypes({
-            //   browser,
-            //   operationTypeNumber: this.filters[filterIndex].operationType,
-            // });
-            // await this.startSearch({ browser })
-            //   .then(() => {
-            //     this.status.search.instances.completed += 1;
-            //   })
-            //   .catch(async (error) => {
-            //     this.filters[filterIndex].scraped = false;
-            //     throw { ...error, code: 1002 };
-            //   });
           } catch (error) {
             _this.options.logError({ error });
             _this.filters[filterIndex].scraped = false;
@@ -314,28 +295,6 @@ class Scraper {
       var _ref10 = _asyncToGenerator(function* ({
         browser, formData, formMethod, formAction
       }) {
-        // await this.clickWait({ browser, selector: 'input#btnSuche' });
-        const hasEntries = true;
-        // await Promise.all([
-        //   browser.page.click('input#btnSuche'),
-        //   browser.page.waitForSelector('#tabReiter0 > a', { timeout: 3000 }),
-        //   browser.page.waitForSelector('#footer'),
-        // ]).catch(async (error) => {
-        //   if (
-        //     (await browser.page.$eval(
-        //       '#inhaltsbereich > div.inhalt > div.contentBox > fieldset.field.infoField > ul > li',
-        //       e => e.innerHTML.trim(),
-        //     )) === 'Es konnte kein Datensatz gefunden werden.'
-        //   ) {
-        //     hasEntries = false;
-        //   } else {
-        //     throw { ...error, code: 1007 };
-        //   }
-        // });
-        // if (!hasEntries || (await this.isSingleResult({ browser }))) {
-        //   return;
-        // }
-
         const { body: searchResultBody } = yield browser.browser.getSearchResultPage({
           formMethod,
           formAction,
@@ -347,9 +306,7 @@ class Scraper {
         if (!resultInfos) {
           return;
         } else if (resultInfos === 'isEntry') {
-          _fs2.default.writeFile('html.html', searchResultBody, function () {});
           const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
-          // console.log(searchResultBody)
           const vorgangId = searchResultBody.match(procedureIdRegex)[1];
           _this.procedures.push({
             id: vorgangId.split('-')[1],
@@ -378,7 +335,6 @@ class Scraper {
             pageLinks = pageLinks.filter(function (link) {
               return _this.options.doScrape({ data: link });
             });
-            // const pageLinks = await this.getEntriesFromPage({ browser });
             _this.procedures.push(...pageLinks);
             _this.status.search.pages.completed += 1;
             pagesCompleted += 1;
@@ -473,10 +429,13 @@ class Scraper {
     var _this3 = this;
 
     return _asyncToGenerator(function* () {
-      const linkIndex = _this3.procedures.findIndex(function ({ scraped }) {
+      while (_this3.procedures.findIndex(function ({ scraped }) {
         return !scraped;
-      });
-      if (linkIndex !== -1) {
+      }) !== -1) {
+        const linkIndex = _this3.procedures.findIndex(function ({ scraped }) {
+          return !scraped;
+        });
+
         _this3.stack[browserIndex].used = true;
         _this3.procedures[linkIndex].scraped = true;
         yield _this3.saveJson({
@@ -516,7 +475,6 @@ class Scraper {
             maxRetries: _this3.options.maxRetries,
             browsers: _this3.stack
           });
-          yield _this3.startAnalyse(browserIndex);
         }));
       }
     })();

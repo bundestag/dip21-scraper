@@ -10,7 +10,7 @@ const program = require('commander');
 const inquirer = require('inquirer');
 const jsonfile = require('jsonfile');
 const fs = require('fs-extra');
-const ProgressBar = require('ascii-progress');
+
 const _ = require('lodash');
 const prettyMs = require('pretty-ms');
 const chalk = require('chalk');
@@ -21,10 +21,6 @@ const log = new Log('error', fs.createWriteStream('error.log'));
 program.version('0.1.0').description('Bundestag scraper').option('-p, --periods [PeriodenNummers|Alle]', 'comma sperated period numbers', null).option('-t, --operationtypes <OperationTypeNummer|Alle>', 'Select specified OperationTypes [null]', null).option('-s, --stacksize <Integer>', 'size of paralell browsers', 1).option('-q, --quiet', 'Silent Mode - No Outputs').parse(process.argv);
 
 const scraper = new Scraper();
-
-let bar1;
-let bar2;
-let bar3;
 
 const selectPeriods = (() => {
   var _ref = _asyncToGenerator(function* ({ periods }) {
@@ -49,16 +45,11 @@ const selectPeriods = (() => {
       });
       return selectedPeriod;
     }
-    // else if (!periods.find(period => period.name === selectedPeriod)) {
-    //   console.log(`'${selectedPeriod}' is not a valid option for period`);
-    //   process.exit(1);
-    // }
     return selectedPeriod.split(',').filter(function (name) {
       return periods.find(function (period) {
         return period.name === name;
       });
     });
-    // return periods.find(period => period.name === selectedPeriod).name;
   });
 
   return function selectPeriods(_x) {
@@ -108,55 +99,31 @@ const logFinished = (() => {
   };
 })();
 
-const logStartSearchProgress = (() => {
-  var _ref4 = _asyncToGenerator(function* () {
-    bar1 = new ProgressBar({
-      schema: 'filters [:bar] :percent :completed/:sum | :estf | :duration',
-      width: 20
-    });
-    bar2 = new ProgressBar({
-      schema: 'pages [:bar] :percent :completed/:sum | :estf | :duration',
-      width: 20
-    });
+const logUpdateSearchProgress = (() => {
+  var _ref4 = _asyncToGenerator(function* ({ search }) {
+    process.stdout.clearLine();
+    process.stdout.cursorTo(0);
+    process.stdout.write(`Pages: ${_.toInteger(search.pages.completed / search.pages.sum * 100)}% | ${search.pages.completed}/${search.pages.sum} | Instances: ${search.instances.completed}/${search.instances.sum}`);
   });
 
-  return function logStartSearchProgress() {
+  return function logUpdateSearchProgress(_x3) {
     return _ref4.apply(this, arguments);
   };
 })();
 
-const logUpdateSearchProgress = (() => {
-  var _ref5 = _asyncToGenerator(function* ({ search }) {
-    bar1.tick(_.toInteger(search.instances.completed / search.instances.sum * 100 - bar1.current), {
-      completed: search.instances.completed,
-      sum: search.instances.sum,
-      estf: prettyMs(_.toInteger((new Date() - bar1.start) / bar1.current * (bar1.total - bar1.current)), { compact: true }),
-      duration: prettyMs(_.toInteger(new Date() - bar1.start), { secDecimalDigits: 0 })
-    });
-    bar2.tick(_.toInteger(search.pages.completed / search.pages.sum * 100 - bar2.current), {
-      completed: search.pages.completed,
-      sum: search.pages.sum,
-      estf: prettyMs(_.toInteger((new Date() - bar2.start) / bar2.current * (bar2.total - bar2.current)), { compact: true }),
-      duration: prettyMs(_.toInteger(new Date() - bar2.start), { secDecimalDigits: 0 })
-    });
-  });
-
-  return function logUpdateSearchProgress(_x3) {
-    return _ref5.apply(this, arguments);
-  };
-})();
+let linksSum = 0;
+let startDate;
 
 const logStartDataProgress = (() => {
-  var _ref6 = _asyncToGenerator(function* ({ sum }) {
+  var _ref5 = _asyncToGenerator(function* ({ sum }) {
+    startDate = new Date();
+    process.stdout.write('\n');
     console.log('links analysieren');
-    bar3 = new ProgressBar({
-      schema: 'links | :cpercent | :current/:total | :estf | :duration | :browsersRunning | :browsersScraped | :browserErrors ',
-      total: sum
-    });
+    linksSum = sum;
   });
 
   return function logStartDataProgress(_x4) {
-    return _ref6.apply(this, arguments);
+    return _ref5.apply(this, arguments);
   };
 })();
 
@@ -166,42 +133,30 @@ function getColor(value) {
 }
 
 const logUpdateDataProgress = (() => {
-  var _ref7 = _asyncToGenerator(function* ({ value, browsers }) {
-    // barData.update(value, { retries, maxRetries });
-    let tick = 0;
-    if (value > bar3.current) {
-      tick = 1;
-    } else if (value < bar3.current) {
-      tick = -1;
-    }
-    bar3.tick(tick, {
-      estf: chalk.hsl(getColor(1 - bar3.current / bar3.total), 100, 50)(prettyMs(_.toInteger((new Date() - bar3.start) / bar3.current * (bar3.total - bar3.current)), { compact: true })),
-      duration: prettyMs(_.toInteger(new Date() - bar3.start), { secDecimalDigits: 0 }),
-      browserErrors: browsers.map(function ({ errors }) {
-        return chalk.hsl(getColor(errors / 4), 100, 50)(errors);
-      }),
-      browsersRunning: browsers.reduce(function (count, { used }) {
-        return count + (used ? 1 : 0);
-      }, 0),
-      browsersScraped: browsers.map(function ({ scraped }) {
-        if (_.maxBy(browsers, 'scraped').scraped === scraped) {
-          return chalk.green(scraped);
-        } else if (_.minBy(browsers, 'scraped').scraped === scraped) {
-          return chalk.red(scraped);
-        }
-        return scraped;
-      }),
-      cpercent: chalk.hsl(getColor(1 - bar3.current / bar3.total), 100, 50)(`${(bar3.current / bar3.total * 100).toFixed(2)}%`)
-    });
+  var _ref6 = _asyncToGenerator(function* ({ value, browsers }) {
+    process.stdout.clearLine();
+    process.stdout.cursorTo(0);
+    process.stdout.write(`Links: ${_.toInteger(value / linksSum * 100)}% | ${value}/${linksSum} | ${chalk.hsl(getColor(1 - value / linksSum), 100, 50)(prettyMs(_.toInteger((new Date() - startDate) / value * (linksSum - value)), {
+      compact: true
+    }))} | ${browsers.map(function ({ scraped }) {
+      if (_.maxBy(browsers, 'scraped').scraped === scraped) {
+        return chalk.green(scraped);
+      } else if (_.minBy(browsers, 'scraped').scraped === scraped) {
+        return chalk.red(scraped);
+      }
+      return scraped;
+    })} | ${browsers.map(function ({ errors }) {
+      return chalk.hsl(getColor(errors / 4), 100, 50)(errors);
+    })}`);
   });
 
   return function logUpdateDataProgress(_x5) {
-    return _ref7.apply(this, arguments);
+    return _ref6.apply(this, arguments);
   };
 })();
 
 const outScraperData = (() => {
-  var _ref8 = _asyncToGenerator(function* ({ procedureId, procedureData }) {
+  var _ref7 = _asyncToGenerator(function* ({ procedureId, procedureData }) {
     if (procedureData) {
       const directory = `files/${procedureData.VORGANG.WAHLPERIODE}/${procedureData.VORGANG.VORGANGSTYP}`;
       yield fs.ensureDir(directory);
@@ -213,34 +168,9 @@ const outScraperData = (() => {
   });
 
   return function outScraperData(_x6) {
-    return _ref8.apply(this, arguments);
+    return _ref7.apply(this, arguments);
   };
 })();
-
-// HANDLE EXIT
-// so the program will not close instantly
-/* if (process.platform === 'win32') {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  rl.on('SIGINT', () => {
-    process.emit('SIGINT');
-  });
-} */
-
-/*
-process.stdin.resume();
-// do something when app is closing
-process.on('exit', scraper.finalize.bind(scraper));
-process.on('SIGINT', scraper.finalize.bind(scraper));
-// catches "kill pid" (for example: nodemon restart)
-process.on('SIGUSR1', scraper.finalize.bind(scraper));
-process.on('SIGUSR2', scraper.finalize.bind(scraper));
-// catches uncaught exceptions
-process.on('uncaughtException', scraper.finalize.bind(scraper));
-*/
 
 process.on('SIGINT', _asyncToGenerator(function* () {
   process.exit(1);
@@ -264,14 +194,13 @@ const logError = ({ error }) => {
 scraper.scrape({
   selectPeriods,
   selectOperationTypes,
-  logStartSearchProgress: program.quiet ? () => {} : logStartSearchProgress,
   logUpdateSearchProgress: program.quiet ? () => {} : logUpdateSearchProgress,
   logStartDataProgress: program.quiet ? () => {} : logStartDataProgress,
   logUpdateDataProgress: program.quiet ? () => {} : logUpdateDataProgress,
   logFinished: program.quiet ? () => {} : logFinished,
   outScraperData,
-  browserStackSize: _.toInteger(program.stacksize)
-  // logError: program.quiet ? () => {} : logError,
+  browserStackSize: _.toInteger(program.stacksize),
+  logError
 }).catch(error => {
   console.error(error);
 });

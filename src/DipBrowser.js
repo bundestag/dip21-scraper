@@ -1,5 +1,3 @@
-import fs from 'fs';
-
 const request = require('request');
 const cheerio = require('cheerio');
 const _ = require('lodash');
@@ -98,15 +96,16 @@ class DipBrowser {
     });
 
   getResultInfo = async ({ body }) => {
-    const $ = cheerio.load(body);
     if (
-      $('#inhaltsbereich > div.inhalt > div.contentBox > fieldset.field.infoField > ul > li')
-        .length > 0
+      cheerio(
+        '#inhaltsbereich > div.inhalt > div.contentBox > fieldset.field.infoField > ul > li',
+        body,
+      ).length > 0
     ) {
       return false;
     }
     const reg = /Seite (\d*) von (\d*) \(Treffer (\d*) bis (\d*) von (\d*)\)/;
-    const paginator = $('#inhaltsbereich')
+    const paginator = cheerio('#inhaltsbereich', body)
       .html()
       .match(reg);
     if (!paginator) {

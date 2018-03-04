@@ -1,7 +1,6 @@
 /* eslint-disable max-len */
 /* eslint-disable no-throw-literal */
 
-import fs from 'fs';
 import DipBrowser from './DipBrowser';
 
 const $ = require('cheerio');
@@ -142,21 +141,6 @@ class Scraper {
           browser, formData, formMethod, formAction,
         });
         this.status.search.instances.completed += 1;
-
-        // await this.goToSearch({ browser });
-        // await this.selectPeriod({ browser, periodName: this.filters[filterIndex].period });
-        // await this.selectOperationTypes({
-        //   browser,
-        //   operationTypeNumber: this.filters[filterIndex].operationType,
-        // });
-        // await this.startSearch({ browser })
-        //   .then(() => {
-        //     this.status.search.instances.completed += 1;
-        //   })
-        //   .catch(async (error) => {
-        //     this.filters[filterIndex].scraped = false;
-        //     throw { ...error, code: 1002 };
-        //   });
       } catch (error) {
         this.options.logError({ error });
         this.filters[filterIndex].scraped = false;
@@ -177,8 +161,9 @@ class Scraper {
   };
 
   async startAnalyse(browserIndex) {
-    const linkIndex = this.procedures.findIndex(({ scraped }) => !scraped);
-    if (linkIndex !== -1) {
+    while (this.procedures.findIndex(({ scraped }) => !scraped) !== -1) {
+      const linkIndex = this.procedures.findIndex(({ scraped }) => !scraped);
+
       this.stack[browserIndex].used = true;
       this.procedures[linkIndex].scraped = true;
       await this.saveJson({
@@ -211,7 +196,6 @@ class Scraper {
             maxRetries: this.options.maxRetries,
             browsers: this.stack,
           });
-          await this.startAnalyse(browserIndex);
         });
     }
   }
@@ -378,28 +362,6 @@ class Scraper {
   startSearch = async ({
     browser, formData, formMethod, formAction,
   }) => {
-    // await this.clickWait({ browser, selector: 'input#btnSuche' });
-    // const hasEntries = true;
-    // await Promise.all([
-    //   browser.page.click('input#btnSuche'),
-    //   browser.page.waitForSelector('#tabReiter0 > a', { timeout: 3000 }),
-    //   browser.page.waitForSelector('#footer'),
-    // ]).catch(async (error) => {
-    //   if (
-    //     (await browser.page.$eval(
-    //       '#inhaltsbereich > div.inhalt > div.contentBox > fieldset.field.infoField > ul > li',
-    //       e => e.innerHTML.trim(),
-    //     )) === 'Es konnte kein Datensatz gefunden werden.'
-    //   ) {
-    //     hasEntries = false;
-    //   } else {
-    //     throw { ...error, code: 1007 };
-    //   }
-    // });
-    // if (!hasEntries || (await this.isSingleResult({ browser }))) {
-    //   return;
-    // }
-
     const { body: searchResultBody } = await browser.browser.getSearchResultPage({
       formMethod,
       formAction,
@@ -411,9 +373,7 @@ class Scraper {
     if (!resultInfos) {
       return;
     } else if (resultInfos === 'isEntry') {
-      fs.writeFile('html.html', searchResultBody, () => {});
       const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
-      // console.log(searchResultBody)
       const vorgangId = searchResultBody.match(procedureIdRegex)[1];
       this.procedures.push({
         id: vorgangId.split('-')[1],
@@ -440,7 +400,6 @@ class Scraper {
 
         let pageLinks = browser.browser.getEntries({ body: searchResultBodyToAnalyse });
         pageLinks = pageLinks.filter(link => this.options.doScrape({ data: link }));
-        // const pageLinks = await this.getEntriesFromPage({ browser });
         this.procedures.push(...pageLinks);
         this.status.search.pages.completed += 1;
         pagesCompleted += 1;
