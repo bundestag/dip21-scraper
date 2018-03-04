@@ -10,9 +10,6 @@ const fs = require('fs-extra');
 const _ = require('lodash');
 const prettyMs = require('pretty-ms');
 const chalk = require('chalk');
-const Log = require('log');
-
-const log = new Log('error', fs.createWriteStream('error.log'));
 
 program
   .version('0.1.0')
@@ -83,9 +80,7 @@ const logFinished = async () => {
 const logUpdateSearchProgress = async ({ search }) => {
   process.stdout.clearLine();
   process.stdout.cursorTo(0);
-  process.stdout.write(`Pages: ${_.toInteger(search.pages.completed / search.pages.sum * 100)}% | ${
-    search.pages.completed
-  }/${search.pages.sum} | Instances: ${search.instances.completed}/${search.instances.sum}`);
+  process.stdout.write(`Instances: ${search.instances.completed}/${search.instances.sum} (${_.toInteger(search.instances.completed / search.instances.sum * 100)}%) | Pages: ${search.pages.completed}/${search.pages.sum} (${_.toInteger(search.pages.completed / search.pages.sum * 100)}%)`);
 };
 
 let linksSum = 0;
@@ -145,18 +140,8 @@ process.on('SIGINT', async () => {
 });
 
 const logError = ({ error }) => {
+  process.stdout.write('\n');
   console.log(error);
-  if (error.type === 'fatal' && error.message) {
-    console.log(error.message);
-  }
-  switch (error.code) {
-    case 1004:
-      break;
-
-    default:
-      log.error(error);
-      break;
-  }
 };
 
 scraper

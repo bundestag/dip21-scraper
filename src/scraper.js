@@ -71,7 +71,11 @@ class Scraper {
     const { browserStackSize } = this.options;
     this.stack = await Promise.all(this.createBrowserStack({
       size: browserStackSize,
-    }));
+    })).catch(() => {
+      throw {
+        error: 'cant create browserstack! Bundestag down?',
+      };
+    });
     this.availableFilters = await this.takeSearchableValues().catch((error) => {
       this.finalize();
       throw {
@@ -145,21 +149,27 @@ class Scraper {
         this.options.logError({ error });
         this.filters[filterIndex].scraped = false;
         this.stack[browserIndex].errors += 1;
+
+        await new Promise((resolve) => {
+          setTimeout(() => {
+            resolve();
+          }, 3000);
+        });
         if (this.stack[browserIndex].errors >= 5) {
           await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then((newBrowser) => {
             this.stack[browserIndex] = newBrowser;
-          }).catch((error2) => {
-            this.options.logError({ error2, function: 'getProceduresFromSearch' });
+          }).catch(async () => {
+
           });
         }
       }
       this.options.logUpdateSearchProgress(this.status);
     }
-    this.options.logUpdateSearchProgress(this.status);
   };
 
   async startAnalyse(browserIndex) {
     while (this.procedures.findIndex(({ scraped }) => !scraped) !== -1) {
+      // process.stdout.write('.');
       const linkIndex = this.procedures.findIndex(({ scraped }) => !scraped);
 
       this.stack[browserIndex].used = true;
@@ -179,22 +189,25 @@ class Scraper {
           this.stack[browserIndex].used = false;
           this.stack[browserIndex].errors += 1;
 
+          await new Promise((resolve) => {
+            setTimeout(() => {
+              resolve();
+            }, 3000);
+          });
+
           if (this.stack[browserIndex].errors >= 5) {
             await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then(async (newBrowser) => {
               this.stack[browserIndex] = newBrowser;
-            }).catch(() => {
-
+            }).catch(async () => {
             });
           }
-        })
-        .then(async () => {
-          this.options.logUpdateDataProgress({
-            value: this.completedLinks,
-            retries: this.retries,
-            maxRetries: this.options.maxRetries,
-            browsers: this.stack,
-          });
         });
+      this.options.logUpdateDataProgress({
+        value: this.completedLinks,
+        retries: this.retries,
+        maxRetries: this.options.maxRetries,
+        browsers: this.stack,
+      });
     }
   }
 
@@ -270,31 +283,6 @@ class Scraper {
     };
   };
 
-  async takePeriods({ browser }) {
-    await browser.page.waitForSelector('input#btnSuche', { timeout: this.options.timeoutSearch() });
-    const selectField = await browser.page.evaluate(
-      sel => document.querySelector(sel).outerHTML,
-      '#wahlperiode',
-    );
-    const values = x2j
-      .xml2js(selectField)
-      .select.option.map(o => ({ value: o._value, name: o.__text }));
-    return values;
-  }
-
-  takeOperationTypes = async ({ browser }) => {
-    const selectField = await browser.page.evaluate(
-      sel => document.querySelector(sel).outerHTML,
-      '#includeVorgangstyp',
-    );
-    const values = x2j.xml2js(selectField).select.option.map(o => ({
-      value: o._value,
-      name: o.__text,
-      number: o.__text.match(/\d{3}/) ? o.__text.match(/\d{3}/)[0] : 'all',
-    }));
-    return values;
-  };
-
   async selectPeriod({ browser, periodName }) {
     const period = this.availableFilters.periods.find(p => p.name === periodName);
     await Promise.all([
@@ -331,30 +319,6 @@ class Scraper {
       periods: searchOptions.wahlperioden,
       operationTypes: searchOptions.vorgangstyp,
     };
-  };
-
-  isSingleResult = async ({ browser }) => {
-    try {
-      const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
-      const content = await browser.page.evaluate(
-        sel => document.querySelector(sel).innerHTML,
-        '#inhaltsbereich',
-      );
-
-      const procedureId = content.match(procedureIdRegex)[1];
-      if (procedureId) {
-        this.procedures.push({
-          id: procedureId.split('-')[1],
-          url: `http://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_list.do?selId=${
-            procedureId.split('-')[1]
-          }&method=select`,
-          scraped: false,
-        });
-      }
-      return true;
-    } catch (error) {
-      return false;
-    }
   };
 
   startSearch = async ({
@@ -416,31 +380,6 @@ class Scraper {
     }
   };
 
-  async getEntriesFromPage({ browser }) {
-    const links = await browser.page.$$eval(
-      '#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody > tr',
-      els =>
-        els.map((el) => {
-          const urlSelector = el.querySelector('a.linkIntern');
-          const dateSelector = el.querySelector('td:nth-child(4)');
-          if (urlSelector && dateSelector) {
-            return {
-              id: urlSelector.href.match(/selId=(\d.*?)&/)[1],
-              url: urlSelector.href,
-              date: dateSelector.innerHTML,
-              scraped: false,
-            };
-          }
-          const error = new Error('Could not get Entries from Page');
-          throw {
-            error,
-            code: 1009,
-          };
-        }),
-    );
-    return links.filter(link => this.options.doScrape({ data: link }));
-  }
-
   async saveJson({ link, dipBrowser }) {
     const procedureIdRegex = /\[ID:&#xA0;(.*?)\]/;
     const { body: entryBody } = await dipBrowser.request({
@@ -498,16 +437,6 @@ class Scraper {
      const xmlRegex = /<VORGANGSABLAUF>(.|\n)*?<\/VORGANGSABLAUF>/;
      const xmlString = html.match(xmlRegex)[0];
      return x2j.xml2js(xmlString);
-   }
-
-   clickWait({ browser, selector }) {
-     return Promise.all([
-       browser.page.click(selector),
-       browser.page.waitForNavigation({
-         waitUntil: ['domcontentloaded'],
-       }),
-       browser.page.waitForSelector('#footer', { timeout: this.options.timeoutSearch() }),
-     ]);
    }
 }
 

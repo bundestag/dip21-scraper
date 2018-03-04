@@ -14,9 +14,6 @@ const fs = require('fs-extra');
 const _ = require('lodash');
 const prettyMs = require('pretty-ms');
 const chalk = require('chalk');
-const Log = require('log');
-
-const log = new Log('error', fs.createWriteStream('error.log'));
 
 program.version('0.1.0').description('Bundestag scraper').option('-p, --periods [PeriodenNummers|Alle]', 'comma sperated period numbers', null).option('-t, --operationtypes <OperationTypeNummer|Alle>', 'Select specified OperationTypes [null]', null).option('-s, --stacksize <Integer>', 'size of paralell browsers', 1).option('-q, --quiet', 'Silent Mode - No Outputs').parse(process.argv);
 
@@ -103,7 +100,7 @@ const logUpdateSearchProgress = (() => {
   var _ref4 = _asyncToGenerator(function* ({ search }) {
     process.stdout.clearLine();
     process.stdout.cursorTo(0);
-    process.stdout.write(`Pages: ${_.toInteger(search.pages.completed / search.pages.sum * 100)}% | ${search.pages.completed}/${search.pages.sum} | Instances: ${search.instances.completed}/${search.instances.sum}`);
+    process.stdout.write(`Instances: ${search.instances.completed}/${search.instances.sum} (${_.toInteger(search.instances.completed / search.instances.sum * 100)}%) | Pages: ${search.pages.completed}/${search.pages.sum} (${_.toInteger(search.pages.completed / search.pages.sum * 100)}%)`);
   });
 
   return function logUpdateSearchProgress(_x3) {
@@ -177,18 +174,8 @@ process.on('SIGINT', _asyncToGenerator(function* () {
 }));
 
 const logError = ({ error }) => {
+  process.stdout.write('\n');
   console.log(error);
-  if (error.type === 'fatal' && error.message) {
-    console.log(error.message);
-  }
-  switch (error.code) {
-    case 1004:
-      break;
-
-    default:
-      log.error(error);
-      break;
-  }
 };
 
 scraper.scrape({

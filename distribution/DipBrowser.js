@@ -28,6 +28,7 @@ class DipBrowser {
 
     this.request = opts => {
       const reqOptions = _extends({
+        timeout: 10000,
         method: 'GET',
         jar: this.cookie
       }, opts);

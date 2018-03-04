@@ -118,17 +118,20 @@ class Scraper {
             _this.options.logError({ error });
             _this.filters[filterIndex].scraped = false;
             _this.stack[browserIndex].errors += 1;
+
+            yield new Promise(function (resolve) {
+              setTimeout(function () {
+                resolve();
+              }, 3000);
+            });
             if (_this.stack[browserIndex].errors >= 5) {
               yield _this.createNewBrowser({ browserObject: _this.stack[browserIndex] }).then(function (newBrowser) {
                 _this.stack[browserIndex] = newBrowser;
-              }).catch(function (error2) {
-                _this.options.logError({ error2, function: 'getProceduresFromSearch' });
-              });
+              }).catch(_asyncToGenerator(function* () {}));
             }
           }
           _this.options.logUpdateSearchProgress(_this.status);
         }
-        _this.options.logUpdateSearchProgress(_this.status);
       });
 
       return function (_x2) {
@@ -174,7 +177,7 @@ class Scraper {
     });
 
     this.configureFilter = (() => {
-      var _ref6 = _asyncToGenerator(function* ({ periods, operationTypes }) {
+      var _ref7 = _asyncToGenerator(function* ({ periods, operationTypes }) {
         // Periods
         let selectedPeriods = [];
         if (_.isArray(_this.options.selectPeriods)) {
@@ -224,26 +227,6 @@ class Scraper {
       });
 
       return function (_x3) {
-        return _ref6.apply(this, arguments);
-      };
-    })();
-
-    this.takeOperationTypes = (() => {
-      var _ref7 = _asyncToGenerator(function* ({ browser }) {
-        const selectField = yield browser.page.evaluate(function (sel) {
-          return document.querySelector(sel).outerHTML;
-        }, '#includeVorgangstyp');
-        const values = x2j.xml2js(selectField).select.option.map(function (o) {
-          return {
-            value: o._value,
-            name: o.__text,
-            number: o.__text.match(/\d{3}/) ? o.__text.match(/\d{3}/)[0] : 'all'
-          };
-        });
-        return values;
-      });
-
-      return function (_x4) {
         return _ref7.apply(this, arguments);
       };
     })();
@@ -264,35 +247,8 @@ class Scraper {
       };
     });
 
-    this.isSingleResult = (() => {
-      var _ref9 = _asyncToGenerator(function* ({ browser }) {
-        try {
-          const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
-          const content = yield browser.page.evaluate(function (sel) {
-            return document.querySelector(sel).innerHTML;
-          }, '#inhaltsbereich');
-
-          const procedureId = content.match(procedureIdRegex)[1];
-          if (procedureId) {
-            _this.procedures.push({
-              id: procedureId.split('-')[1],
-              url: `http://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_list.do?selId=${procedureId.split('-')[1]}&method=select`,
-              scraped: false
-            });
-          }
-          return true;
-        } catch (error) {
-          return false;
-        }
-      });
-
-      return function (_x5) {
-        return _ref9.apply(this, arguments);
-      };
-    })();
-
     this.startSearch = (() => {
-      var _ref10 = _asyncToGenerator(function* ({
+      var _ref9 = _asyncToGenerator(function* ({
         browser, formData, formMethod, formAction
       }) {
         const { body: searchResultBody } = yield browser.browser.getSearchResultPage({
@@ -353,20 +309,20 @@ class Scraper {
         }
       });
 
-      return function (_x6) {
-        return _ref10.apply(this, arguments);
+      return function (_x4) {
+        return _ref9.apply(this, arguments);
       };
     })();
 
     this.getProcedureData = (() => {
-      var _ref11 = _asyncToGenerator(function* ({ html }) {
+      var _ref10 = _asyncToGenerator(function* ({ html }) {
         const xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
         const xmlString = html.match(xmlRegex)[0].replace('<- VORGANGSABLAUF ->', '');
         return x2j.xml2js(xmlString);
       });
 
-      return function (_x7) {
-        return _ref11.apply(this, arguments);
+      return function (_x5) {
+        return _ref10.apply(this, arguments);
       };
     })();
   }
@@ -379,7 +335,11 @@ class Scraper {
       const { browserStackSize } = _this2.options;
       _this2.stack = yield Promise.all(_this2.createBrowserStack({
         size: browserStackSize
-      }));
+      })).catch(function () {
+        throw {
+          error: 'cant create browserstack! Bundestag down?'
+        };
+      });
       _this2.availableFilters = yield _this2.takeSearchableValues().catch(function (error) {
         _this2.finalize();
         throw {
@@ -403,12 +363,12 @@ class Scraper {
       _this2.options.logStopSearchProgress();
 
       yield Promise.all(_this2.stack.map((() => {
-        var _ref12 = _asyncToGenerator(function* (browser, browserIndex) {
+        var _ref11 = _asyncToGenerator(function* (browser, browserIndex) {
           yield _this2.startAnalyse(browserIndex);
         });
 
-        return function (_x8, _x9) {
-          return _ref12.apply(this, arguments);
+        return function (_x6, _x7) {
+          return _ref11.apply(this, arguments);
         };
       })())).then(_asyncToGenerator(function* () {
         _this2.options.logUpdateDataProgress({
@@ -432,6 +392,7 @@ class Scraper {
       while (_this3.procedures.findIndex(function ({ scraped }) {
         return !scraped;
       }) !== -1) {
+        // process.stdout.write('.');
         const linkIndex = _this3.procedures.findIndex(function ({ scraped }) {
           return !scraped;
         });
@@ -446,60 +407,50 @@ class Scraper {
           _this3.stack[browserIndex].used = false;
           _this3.stack[browserIndex].scraped += 1;
         })).catch((() => {
-          var _ref15 = _asyncToGenerator(function* (error) {
+          var _ref14 = _asyncToGenerator(function* (error) {
             _this3.options.logError({ error });
             _this3.procedures[linkIndex].scraped = false;
             _this3.stack[browserIndex].used = false;
             _this3.stack[browserIndex].errors += 1;
 
+            yield new Promise(function (resolve) {
+              setTimeout(function () {
+                resolve();
+              }, 3000);
+            });
+
             if (_this3.stack[browserIndex].errors >= 5) {
               yield _this3.createNewBrowser({ browserObject: _this3.stack[browserIndex] }).then((() => {
-                var _ref16 = _asyncToGenerator(function* (newBrowser) {
+                var _ref15 = _asyncToGenerator(function* (newBrowser) {
                   _this3.stack[browserIndex] = newBrowser;
                 });
 
-                return function (_x11) {
-                  return _ref16.apply(this, arguments);
+                return function (_x9) {
+                  return _ref15.apply(this, arguments);
                 };
-              })()).catch(function () {});
+              })()).catch(_asyncToGenerator(function* () {}));
             }
           });
 
-          return function (_x10) {
-            return _ref15.apply(this, arguments);
+          return function (_x8) {
+            return _ref14.apply(this, arguments);
           };
-        })()).then(_asyncToGenerator(function* () {
-          _this3.options.logUpdateDataProgress({
-            value: _this3.completedLinks,
-            retries: _this3.retries,
-            maxRetries: _this3.options.maxRetries,
-            browsers: _this3.stack
-          });
-        }));
+        })());
+        _this3.options.logUpdateDataProgress({
+          value: _this3.completedLinks,
+          retries: _this3.retries,
+          maxRetries: _this3.options.maxRetries,
+          browsers: _this3.stack
+        });
       }
     })();
   }
 
-  takePeriods({ browser }) {
+  selectPeriod({ browser, periodName }) {
     var _this4 = this;
 
     return _asyncToGenerator(function* () {
-      yield browser.page.waitForSelector('input#btnSuche', { timeout: _this4.options.timeoutSearch() });
-      const selectField = yield browser.page.evaluate(function (sel) {
-        return document.querySelector(sel).outerHTML;
-      }, '#wahlperiode');
-      const values = x2j.xml2js(selectField).select.option.map(function (o) {
-        return { value: o._value, name: o.__text };
-      });
-      return values;
-    })();
-  }
-
-  selectPeriod({ browser, periodName }) {
-    var _this5 = this;
-
-    return _asyncToGenerator(function* () {
-      const period = _this5.availableFilters.periods.find(function (p) {
+      const period = _this4.availableFilters.periods.find(function (p) {
         return p.name === periodName;
       });
       yield Promise.all([browser.page.waitForNavigation({ waitUntil: ['domcontentloaded'] }), browser.page.select('select#wahlperiode', period.value)]).catch(function (error) {
@@ -513,10 +464,10 @@ class Scraper {
   }
 
   selectOperationTypes({ browser, operationTypeNumber }) {
-    var _this6 = this;
+    var _this5 = this;
 
     return _asyncToGenerator(function* () {
-      const operationType = _this6.availableFilters.operationTypes.find(function (o) {
+      const operationType = _this5.availableFilters.operationTypes.find(function (o) {
         return o.number === operationTypeNumber;
       });
       if (!operationType) {
@@ -526,37 +477,8 @@ class Scraper {
     })();
   }
 
-  getEntriesFromPage({ browser }) {
-    var _this7 = this;
-
-    return _asyncToGenerator(function* () {
-      const links = yield browser.page.$$eval('#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody > tr', function (els) {
-        return els.map(function (el) {
-          const urlSelector = el.querySelector('a.linkIntern');
-          const dateSelector = el.querySelector('td:nth-child(4)');
-          if (urlSelector && dateSelector) {
-            return {
-              id: urlSelector.href.match(/selId=(\d.*?)&/)[1],
-              url: urlSelector.href,
-              date: dateSelector.innerHTML,
-              scraped: false
-            };
-          }
-          const error = new Error('Could not get Entries from Page');
-          throw {
-            error,
-            code: 1009
-          };
-        });
-      });
-      return links.filter(function (link) {
-        return _this7.options.doScrape({ data: link });
-      });
-    })();
-  }
-
   saveJson({ link, dipBrowser }) {
-    var _this8 = this;
+    var _this6 = this;
 
     return _asyncToGenerator(function* () {
       const procedureIdRegex = /\[ID:&#xA0;(.*?)\]/;
@@ -586,10 +508,10 @@ class Scraper {
         };
       }
 
-      const dataProcedure = yield _this8.getProcedureData({ html: procedureHtml });
+      const dataProcedure = yield _this6.getProcedureData({ html: procedureHtml });
 
       const { body: entryRunningBody } = yield dipBrowser.request({
-        uri: `${_this8.urls.processRunning}${vorgangId}`
+        uri: `${_this6.urls.processRunning}${vorgangId}`
       });
 
       const procedureRunningHtml = $('#inhaltsbereich', entryRunningBody).html();
@@ -599,7 +521,7 @@ class Scraper {
       const procedureData = _extends({
         vorgangId
       }, dataProcedure, dataProcedureRunning);
-      _this8.options.outScraperData({ procedureId, procedureData });
+      _this6.options.outScraperData({ procedureId, procedureData });
     })();
   }
 
@@ -609,12 +531,6 @@ class Scraper {
       const xmlString = html.match(xmlRegex)[0];
       return x2j.xml2js(xmlString);
     })();
-  }
-
-  clickWait({ browser, selector }) {
-    return Promise.all([browser.page.click(selector), browser.page.waitForNavigation({
-      waitUntil: ['domcontentloaded']
-    }), browser.page.waitForSelector('#footer', { timeout: this.options.timeoutSearch() })]);
   }
 }
 
