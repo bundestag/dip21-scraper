@@ -127,9 +127,10 @@ const logUpdateSearchProgress = async ({ search }) => {
 };
 
 let linksSum = 0;
-let startDate = new Date();
+let startDate;
 
 const logStartDataProgress = async ({ sum }) => {
+  startDate = new Date();
   process.stdout.write('\n');
   console.log('links analysieren');
   linksSum = sum;
