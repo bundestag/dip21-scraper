@@ -89,7 +89,6 @@ let startDate;
 const logStartDataProgress = async ({ sum }) => {
   startDate = new Date();
   process.stdout.write('\n');
-  console.log('links analysieren');
   linksSum = sum;
 };
 

@@ -115,7 +115,6 @@ const logStartDataProgress = (() => {
   var _ref5 = _asyncToGenerator(function* ({ sum }) {
     startDate = new Date();
     process.stdout.write('\n');
-    console.log('links analysieren');
     linksSum = sum;
   });
 

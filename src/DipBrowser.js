@@ -141,38 +141,3 @@ class DipBrowser {
 }
 
 export default DipBrowser;
-
-// (async () => {
-//   const browser = new DipBrowser();
-//   await browser.initialize();
-
-//   const searchBody = await browser.getBeratungsablaeufeSearchPage();
-
-//   /* Only get possible filter Data  */
-//   // const searchOptions = await browser.getBeratungsablaeufeSearchOptions({
-//   //   body: searchBody
-//   // });
-//   //   console.log(searchOptions);
-
-//   const { formData, formMethod, formAction } = await browser.getBeratungsablaeufeSearchFormData({
-//     body: searchBody,
-//   });
-
-//   /* suchoptionen einstellen */
-//   formData.wahlperiode = '';
-//   formData.method = 'Suchen';
-//   formData.anzahlTreffer = 2;
-
-//   const { body: searchResultBody } = await browser.getSearchResultPage({
-//     formMethod,
-//     formAction,
-//     formData,
-//   });
-
-//   const resultInfo = await browser.getResultInfo({ body: searchResultBody });
-//   console.log(resultInfo);
-
-//   let entries = [];
-//   entries = [...entries, ...browser.getEntries({ body: searchResultBody })];
-//   // console.log(entries);
-// })();
