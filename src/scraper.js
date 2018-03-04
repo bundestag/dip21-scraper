@@ -379,7 +379,7 @@ class Scraper {
     browser, formData, formMethod, formAction,
   }) => {
     // await this.clickWait({ browser, selector: 'input#btnSuche' });
-    const hasEntries = true;
+    // const hasEntries = true;
     // await Promise.all([
     //   browser.page.click('input#btnSuche'),
     //   browser.page.waitForSelector('#tabReiter0 > a', { timeout: 3000 }),
