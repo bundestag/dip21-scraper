@@ -104,14 +104,21 @@ class Scraper {
           _this.filters[filterIndex].scraped = true;
           try {
             const searchBody = yield browser.browser.getBeratungsablaeufeSearchPage();
-            const { formData, formMethod, formAction } = yield browser.browser.getBeratungsablaeufeSearchFormData({ body: searchBody });
+            const {
+              formData,
+              formMethod,
+              formAction
+            } = yield browser.browser.getBeratungsablaeufeSearchFormData({ body: searchBody });
             formData.wahlperiode = _this.filters[filterIndex].period;
             formData.vorgangstyp = _this.filters[filterIndex].operationType;
             formData.method = 'Suchen';
             formData.anzahlTreffer = _this.options.resultsPerPage;
 
             yield _this.startSearch({
-              browser, formData, formMethod, formAction
+              browser,
+              formData,
+              formMethod,
+              formAction
             });
             _this.status.search.instances.completed += 1;
           } catch (error) {
@@ -295,6 +302,7 @@ class Scraper {
             _this.status.search.pages.completed += 1;
             pagesCompleted += 1;
           } catch (error) {
+            i = 1;
             _this.status.search.pages.sum -= resultInfos.pageSum;
             _this.status.search.pages.completed -= pagesCompleted;
             throw {
@@ -303,9 +311,8 @@ class Scraper {
               type: 'timeout',
               code: 1008
             };
-          } finally {
-            _this.options.logUpdateSearchProgress(_this.status);
           }
+          _this.options.logUpdateSearchProgress(_this.status);
         }
       });
 
@@ -516,7 +523,9 @@ class Scraper {
 
       const procedureRunningHtml = $('#inhaltsbereich', entryRunningBody).html();
 
-      const dataProcedureRunning = yield Scraper.getProcedureRunningData({ html: procedureRunningHtml });
+      const dataProcedureRunning = yield Scraper.getProcedureRunningData({
+        html: procedureRunningHtml
+      });
 
       const procedureData = _extends({
         vorgangId

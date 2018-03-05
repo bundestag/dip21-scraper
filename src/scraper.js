@@ -10,7 +10,6 @@ const Querystring = require('querystring');
 const _ = require('lodash');
 const chalk = require('chalk');
 
-
 const x2j = new X2JS();
 
 process.setMaxListeners(Infinity);
@@ -135,14 +134,21 @@ class Scraper {
       this.filters[filterIndex].scraped = true;
       try {
         const searchBody = await browser.browser.getBeratungsablaeufeSearchPage();
-        const { formData, formMethod, formAction } = await browser.browser.getBeratungsablaeufeSearchFormData({ body: searchBody });
+        const {
+          formData,
+          formMethod,
+          formAction,
+        } = await browser.browser.getBeratungsablaeufeSearchFormData({ body: searchBody });
         formData.wahlperiode = this.filters[filterIndex].period;
         formData.vorgangstyp = this.filters[filterIndex].operationType;
         formData.method = 'Suchen';
         formData.anzahlTreffer = this.options.resultsPerPage;
 
         await this.startSearch({
-          browser, formData, formMethod, formAction,
+          browser,
+          formData,
+          formMethod,
+          formAction,
         });
         this.status.search.instances.completed += 1;
       } catch (error) {
@@ -156,11 +162,11 @@ class Scraper {
           }, 3000);
         });
         if (this.stack[browserIndex].errors >= 5) {
-          await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then((newBrowser) => {
-            this.stack[browserIndex] = newBrowser;
-          }).catch(async () => {
-
-          });
+          await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
+            .then((newBrowser) => {
+              this.stack[browserIndex] = newBrowser;
+            })
+            .catch(async () => {});
         }
       }
       this.options.logUpdateSearchProgress(this.status);
@@ -196,10 +202,11 @@ class Scraper {
           });
 
           if (this.stack[browserIndex].errors >= 5) {
-            await this.createNewBrowser({ browserObject: this.stack[browserIndex] }).then(async (newBrowser) => {
-              this.stack[browserIndex] = newBrowser;
-            }).catch(async () => {
-            });
+            await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
+              .then(async (newBrowser) => {
+                this.stack[browserIndex] = newBrowser;
+              })
+              .catch(async () => {});
           }
         });
       this.options.logUpdateDataProgress({
@@ -339,7 +346,9 @@ class Scraper {
       const vorgangId = searchResultBody.match(procedureIdRegex)[1];
       this.procedures.push({
         id: vorgangId.split('-')[1],
-        url: `/dip21.web/searchProcedures/simple_search_list.do?selId=${vorgangId.split('-')[1]}&method=select&offset=0&anzahl=200&sort=3&direction=desc`,
+        url: `/dip21.web/searchProcedures/simple_search_list.do?selId=${
+          vorgangId.split('-')[1]
+        }&method=select&offset=0&anzahl=200&sort=3&direction=desc`,
         scraped: false,
       });
       return;
@@ -366,6 +375,7 @@ class Scraper {
         this.status.search.pages.completed += 1;
         pagesCompleted += 1;
       } catch (error) {
+        i = 1;
         this.status.search.pages.sum -= resultInfos.pageSum;
         this.status.search.pages.completed -= pagesCompleted;
         throw {
@@ -374,9 +384,8 @@ class Scraper {
           type: 'timeout',
           code: 1008,
         };
-      } finally {
-        this.options.logUpdateSearchProgress(this.status);
       }
+      this.options.logUpdateSearchProgress(this.status);
     }
   };
 
@@ -385,7 +394,6 @@ class Scraper {
     const { body: entryBody } = await dipBrowser.request({
       uri: link,
     });
-
 
     const procedureHtml = $('#inhaltsbereich', entryBody).html();
 
@@ -417,7 +425,9 @@ class Scraper {
 
     const procedureRunningHtml = $('#inhaltsbereich', entryRunningBody).html();
 
-    const dataProcedureRunning = await Scraper.getProcedureRunningData({ html: procedureRunningHtml });
+    const dataProcedureRunning = await Scraper.getProcedureRunningData({
+      html: procedureRunningHtml,
+    });
 
     const procedureData = {
       vorgangId,
@@ -427,17 +437,17 @@ class Scraper {
     this.options.outScraperData({ procedureId, procedureData });
   }
 
-   getProcedureData = async ({ html }) => {
-     const xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
-     const xmlString = html.match(xmlRegex)[0].replace('<- VORGANGSABLAUF ->', '');
-     return x2j.xml2js(xmlString);
-   }
+  getProcedureData = async ({ html }) => {
+    const xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
+    const xmlString = html.match(xmlRegex)[0].replace('<- VORGANGSABLAUF ->', '');
+    return x2j.xml2js(xmlString);
+  };
 
-   static async getProcedureRunningData({ html }) {
-     const xmlRegex = /<VORGANGSABLAUF>(.|\n)*?<\/VORGANGSABLAUF>/;
-     const xmlString = html.match(xmlRegex)[0];
-     return x2j.xml2js(xmlString);
-   }
+  static async getProcedureRunningData({ html }) {
+    const xmlRegex = /<VORGANGSABLAUF>(.|\n)*?<\/VORGANGSABLAUF>/;
+    const xmlString = html.match(xmlRegex)[0];
+    return x2j.xml2js(xmlString);
+  }
 }
 
 module.exports = Scraper;
