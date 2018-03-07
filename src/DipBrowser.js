@@ -97,18 +97,11 @@ class DipBrowser {
     });
 
   getResultInfo = async ({ body }) => {
-    if (
-      cheerio(
-        '#inhaltsbereich > div.inhalt > div.contentBox > fieldset.field.infoField > ul > li',
-        body,
-      ).length > 0
-    ) {
+    if (body.includes('Es konnte kein Datensatz gefunden werden.')) {
       return false;
     }
     const reg = /Seite (\d*) von (\d*) \(Treffer (\d*) bis (\d*) von (\d*)\)/;
-    const paginator = cheerio('#inhaltsbereich', body)
-      .html()
-      .match(reg);
+    const paginator = body.match(reg);
     if (!paginator) {
       return 'isEntry';
     }
