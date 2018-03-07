@@ -83,7 +83,7 @@ class Scraper {
         this.availableFilters = await this.takeSearchableValues();
         hasData = true;
       } catch (error) {
-        console.log('bundestag down (search)', error);
+        console.log('bundestag down (search)');
         await new Promise(resolve => setTimeout(() => {
           resolve();
         }, 3000));
