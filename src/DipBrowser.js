@@ -80,15 +80,25 @@ class DipBrowser {
   };
 
   getBeratungsablaeufeSearchFormData = async ({ body }) => {
-    const $ = cheerio.load(body);
-    const formData = $('#ProceduresSimpleSearchForm')
-      .serializeArray()
-      .reduce((obj, { name, value }) => ({ ...obj, [name]: value }), {});
-    const searchForm = $('#ProceduresSimpleSearchForm');
+    const form = body.match(/<form.*?id="ProceduresSimpleSearchForm".*?method="(.*?)?".*?action="(.*?)?".*?>(.|[\r\n])*?<\/form>/);
+    const method = form[1];
+    const action = form[2];
+
+    const re = /<input.*?type="hidden".*?name="(.*?)".*?value="(.*?)".*?>/g;
+    let m;
+    const formData = { suchwort: '', nummer: '', wahlperiode: '8' };
+
+    do {
+      m = re.exec(form[0]);
+      if (m) {
+        formData[m[1]] = m[2]; // eslint-disable-line prefer-destructuring
+      }
+    } while (m);
+
     return {
       formData,
-      formMethod: searchForm.attr('method'),
-      formAction: searchForm.attr('action'),
+      formMethod: method,
+      formAction: action,
     };
   };
 
