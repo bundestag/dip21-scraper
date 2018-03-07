@@ -1,6 +1,4 @@
 const request = require('request');
-const cheerio = require('cheerio');
-const _ = require('lodash');
 
 class DipBrowser {
   dipUrl = 'https://dipbt.bundestag.de';
@@ -80,15 +78,25 @@ class DipBrowser {
   };
 
   getBeratungsablaeufeSearchFormData = async ({ body }) => {
-    const $ = cheerio.load(body);
-    const formData = $('#ProceduresSimpleSearchForm')
-      .serializeArray()
-      .reduce((obj, { name, value }) => ({ ...obj, [name]: value }), {});
-    const searchForm = $('#ProceduresSimpleSearchForm');
+    const form = body.match(/<form.*?id="ProceduresSimpleSearchForm".*?method="(.*?)?".*?action="(.*?)?".*?>(.|[\r\n])*?<\/form>/);
+    const method = form[1];
+    const action = form[2];
+
+    const re = /<input.*?type="hidden".*?name="(.*?)".*?value="(.*?)".*?>/g;
+    let m;
+    const formData = { suchwort: '', nummer: '', wahlperiode: '8' };
+
+    do {
+      m = re.exec(form[0]);
+      if (m) {
+        formData[m[1]] = m[2]; // eslint-disable-line prefer-destructuring
+      }
+    } while (m);
+
     return {
       formData,
-      formMethod: searchForm.attr('method'),
-      formAction: searchForm.attr('action'),
+      formMethod: method,
+      formAction: action,
     };
   };
 
@@ -109,30 +117,33 @@ class DipBrowser {
       return 'isEntry';
     }
     return {
-      pageCurrent: _.toInteger(paginator[1]),
-      pageSum: _.toInteger(paginator[2]),
-      entriesFrom: _.toInteger(paginator[3]),
-      entriesTo: _.toInteger(paginator[4]),
-      entriesSum: _.toInteger(paginator[5]),
+      pageCurrent: parseInt(paginator[1], 10),
+      pageSum: parseInt(paginator[2], 10),
+      entriesFrom: parseInt(paginator[3], 10),
+      entriesTo: parseInt(paginator[4], 10),
+      entriesSum: parseInt(paginator[5], 10),
     };
   };
 
   getEntries = ({ body }) => {
-    const $ = cheerio.load(body);
-    const entries = $('#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody tr');
+    const table = body.match(/<table summary="Ergebnisliste">(.|[\r\n])*?<\/table>/);
 
-    return _.map(entries, (entry) => {
-      const { href } = $(entry).find($('a.linkIntern'))[0].attribs;
-      const date = $(entry)
-        .find($('td:nth-child(4)'))
-        .text();
-      return {
-        id: href.match(/selId=(\d.*?)&/)[1],
-        url: href,
-        date,
-        scraped: false,
-      };
-    });
+    const re = /<a.*?class="linkIntern".*?href="(.*?)">.*?<\/a>.*?<\/td><td>([0-9]*.[0-9]*.[0-9]*)<\/td>/g;
+    let m;
+    const data = [];
+    do {
+      m = re.exec(table[0]);
+      if (m) {
+        data.push({
+          id: m[1].match(/selId=(\d.*?)&/)[1],
+          url: m[1].replace('&amp;', '&'),
+          date: m[2],
+          scraped: false,
+        });
+      }
+    } while (m);
+
+    return data;
   };
 }
 
