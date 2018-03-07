@@ -1,5 +1,3 @@
-import fs from 'fs';
-
 const request = require('request');
 const cheerio = require('cheerio');
 const _ = require('lodash');
