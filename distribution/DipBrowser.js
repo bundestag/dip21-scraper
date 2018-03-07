@@ -62,7 +62,6 @@ class DipBrowser {
     });
 
     this.getSelectOptions = ({ selectHtml }) => {
-      // console.log(selectHtml);
       const optionMatches = selectHtml.match(/<option.*?>.*?<\/option>/g).map(o => {
         const oMatches = o.match(/<option.*?value="(.*?)".*?>(.*?)<\/option>/);
         return {
@@ -89,7 +88,6 @@ class DipBrowser {
             number: e.name.split(' - ')[0]
           });
         });
-        console.log(operationTypes);
         return {
           wahlperioden: periods,
           vorgangstyp: operationTypes
