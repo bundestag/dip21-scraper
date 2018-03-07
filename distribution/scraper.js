@@ -97,6 +97,7 @@ class Scraper {
         while (_this.filters.findIndex(function ({ scraped }) {
           return !scraped;
         }) !== -1) {
+          let hasError = false;
           const filterIndex = _this.filters.findIndex(function ({ scraped }) {
             return !scraped;
           });
@@ -121,6 +122,7 @@ class Scraper {
             });
             _this.status.search.instances.completed += 1;
           } catch (error) {
+            hasError = true;
             _this.options.logError({ error });
             _this.filters[filterIndex].scraped = false;
             _this.stack[browserIndex].errors += 1;
@@ -137,7 +139,7 @@ class Scraper {
               };
             }
           }
-          _this.options.logUpdateSearchProgress(_this.status);
+          _this.options.logUpdateSearchProgress(_extends({}, _this.status, { hasError }));
         }
       });
 
@@ -398,6 +400,7 @@ class Scraper {
       while (_this3.procedures.findIndex(function ({ scraped }) {
         return !scraped;
       }) !== -1) {
+        let hasError = false;
         // process.stdout.write('.');
         const linkIndex = _this3.procedures.findIndex(function ({ scraped }) {
           return !scraped;
@@ -414,6 +417,7 @@ class Scraper {
           _this3.stack[browserIndex].scraped += 1;
         })).catch((() => {
           var _ref13 = _asyncToGenerator(function* (error) {
+            hasError = true;
             _this3.options.logError({ error });
             _this3.procedures[linkIndex].scraped = false;
             _this3.stack[browserIndex].used = false;
@@ -434,7 +438,15 @@ class Scraper {
                 return function (_x9) {
                   return _ref14.apply(this, arguments);
                 };
-              })()).catch(_asyncToGenerator(function* () {}));
+              })()).catch((() => {
+                var _ref15 = _asyncToGenerator(function* (error2) {
+                  _this3.options.logError({ error2 });
+                });
+
+                return function (_x10) {
+                  return _ref15.apply(this, arguments);
+                };
+              })());
             }
           });
 
@@ -445,7 +457,8 @@ class Scraper {
         _this3.options.logUpdateDataProgress({
           value: _this3.completedLinks,
           retries: _this3.retries,
-          browsers: _this3.stack
+          browsers: _this3.stack,
+          hasError
         });
       }
     })();
