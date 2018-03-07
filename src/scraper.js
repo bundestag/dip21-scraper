@@ -195,13 +195,14 @@ class Scraper {
           this.completedLinks += 1;
           this.stack[browserIndex].used = false;
           this.stack[browserIndex].scraped += 1;
+          this.stack[browserIndex].errors = 0;
         })
         .catch(async (error) => {
           hasError = true;
           this.options.logError({ error });
           this.procedures[linkIndex].scraped = false;
           this.stack[browserIndex].used = false;
-          this.stack[browserIndex].errors = 0;
+          this.stack[browserIndex].errors += 1;
 
           await new Promise((resolve) => {
             setTimeout(() => {
