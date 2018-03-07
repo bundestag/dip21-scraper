@@ -71,7 +71,7 @@ class Scraper {
         }));
         stackCreated = true;
       } catch (error) {
-        console.log('bundestag down');
+        console.log('bundestag down (stack)');
         await new Promise(resolve => setTimeout(() => {
           resolve();
         }, 3000));
@@ -83,7 +83,7 @@ class Scraper {
         this.availableFilters = await this.takeSearchableValues();
         hasData = true;
       } catch (error) {
-        console.log('bundestag down');
+        console.log('bundestag down (search)', error);
         await new Promise(resolve => setTimeout(() => {
           resolve();
         }, 3000));

@@ -1,3 +1,5 @@
+import fs from 'fs';
+
 const request = require('request');
 const cheerio = require('cheerio');
 const _ = require('lodash');
@@ -48,31 +50,34 @@ class DipBrowser {
     return body;
   };
 
-  getSelectOptions = ({ $, selector }) =>
-    _.map($(selector).children(), ({ children, attribs: { value } }) => ({
-      name: children[0].data,
-      value,
-    }));
+  getSelectOptions = ({ selectHtml }) => {
+    const optionMatches = selectHtml.match(/<option.*?>.*?<\/option>/g).map((o) => {
+      const oMatches = o.match(/<option.*?value="(.*?)".*?>(.*?)<\/option>/);
+      return {
+        name: oMatches[2],
+        value: oMatches[1],
+      };
+    });
+    return optionMatches;
+  };
 
   getBeratungsablaeufeSearchOptions = async ({ body }) => {
-    const $ = cheerio.load(body);
-    const wahlperioden = this.getSelectOptions({
-      $,
-      selector: '#ProceduresSimpleSearchForm #wahlperiode',
-    });
-    let vorgangstyp = this.getSelectOptions({
-      $,
-      selector: '#ProceduresSimpleSearchForm #includeVorgangstyp',
+    const periodMatches = body.match(/<select name="wahlperiode".*?>(.|\s)*?<\/select>/);
+    const periods = this.getSelectOptions({
+      selectHtml: periodMatches[0],
     });
 
-    vorgangstyp = vorgangstyp.map(e => ({
+    const operationTypesMatches = body.match(/<select name="vorgangstyp".*?>(.|\s)*?<\/select>/);
+    let operationTypes = this.getSelectOptions({
+      selectHtml: operationTypesMatches[0],
+    });
+    operationTypes = operationTypes.map(e => ({
       ...e,
       number: e.name.split(' - ')[0],
     }));
-
     return {
-      wahlperioden,
-      vorgangstyp,
+      wahlperioden: periods,
+      vorgangstyp: operationTypes,
     };
   };
 

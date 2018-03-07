@@ -6,6 +6,12 @@ Object.defineProperty(exports, "__esModule", {
 
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
+var _fs = require('fs');
+
+var _fs2 = _interopRequireDefault(_fs);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 function _asyncToGenerator(fn) { return function () { var gen = fn.apply(this, arguments); return new Promise(function (resolve, reject) { function step(key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { return Promise.resolve(value).then(function (value) { step("next", value); }, function (err) { step("throw", err); }); } } return step("next"); }); }; }
 
 const request = require('request');
@@ -55,32 +61,38 @@ class DipBrowser {
       return body;
     });
 
-    this.getSelectOptions = ({ $, selector }) => _.map($(selector).children(), ({ children, attribs: { value } }) => ({
-      name: children[0].data,
-      value
-    }));
+    this.getSelectOptions = ({ selectHtml }) => {
+      // console.log(selectHtml);
+      const optionMatches = selectHtml.match(/<option.*?>.*?<\/option>/g).map(o => {
+        const oMatches = o.match(/<option.*?value="(.*?)".*?>(.*?)<\/option>/);
+        return {
+          name: oMatches[2],
+          value: oMatches[1]
+        };
+      });
+      return optionMatches;
+    };
 
     this.getBeratungsablaeufeSearchOptions = (() => {
       var _ref3 = _asyncToGenerator(function* ({ body }) {
-        const $ = cheerio.load(body);
-        const wahlperioden = _this.getSelectOptions({
-          $,
-          selector: '#ProceduresSimpleSearchForm #wahlperiode'
-        });
-        let vorgangstyp = _this.getSelectOptions({
-          $,
-          selector: '#ProceduresSimpleSearchForm #includeVorgangstyp'
+        const periodMatches = body.match(/<select name="wahlperiode".*?>(.|\s)*?<\/select>/);
+        const periods = _this.getSelectOptions({
+          selectHtml: periodMatches[0]
         });
 
-        vorgangstyp = vorgangstyp.map(function (e) {
+        const operationTypesMatches = body.match(/<select name="vorgangstyp".*?>(.|\s)*?<\/select>/);
+        let operationTypes = _this.getSelectOptions({
+          selectHtml: operationTypesMatches[0]
+        });
+        operationTypes = operationTypes.map(function (e) {
           return _extends({}, e, {
             number: e.name.split(' - ')[0]
           });
         });
-
+        console.log(operationTypes);
         return {
-          wahlperioden,
-          vorgangstyp
+          wahlperioden: periods,
+          vorgangstyp: operationTypes
         };
       });
 
@@ -124,11 +136,11 @@ class DipBrowser {
 
     this.getResultInfo = (() => {
       var _ref6 = _asyncToGenerator(function* ({ body }) {
-        if (cheerio('#inhaltsbereich > div.inhalt > div.contentBox > fieldset.field.infoField > ul > li', body).length > 0) {
+        if (body.includes('Es konnte kein Datensatz gefunden werden.')) {
           return false;
         }
         const reg = /Seite (\d*) von (\d*) \(Treffer (\d*) bis (\d*) von (\d*)\)/;
-        const paginator = cheerio('#inhaltsbereich', body).html().match(reg);
+        const paginator = body.match(reg);
         if (!paginator) {
           return 'isEntry';
         }

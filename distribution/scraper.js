@@ -359,7 +359,7 @@ class Scraper {
           }));
           stackCreated = true;
         } catch (error) {
-          console.log('bundestag down');
+          console.log('bundestag down (stack)');
           yield new Promise(function (resolve) {
             return setTimeout(function () {
               resolve();
@@ -373,7 +373,7 @@ class Scraper {
           _this2.availableFilters = yield _this2.takeSearchableValues();
           hasData = true;
         } catch (error) {
-          console.log('bundestag down');
+          console.log('bundestag down (search)', error);
           yield new Promise(function (resolve) {
             return setTimeout(function () {
               resolve();
