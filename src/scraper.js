@@ -363,9 +363,7 @@ class Scraper {
       const vorgangId = searchResultBody.match(procedureIdRegex)[1];
       this.procedures.push({
         id: vorgangId.split('-')[1],
-        url: `/dip21.web/searchProcedures/simple_search_list.do?selId=${
-          vorgangId.split('-')[1]
-          }&method=select&offset=0&anzahl=200&sort=3&direction=desc`,
+        url: `/dip21.web/searchProcedures/simple_search_list.do?selId=${vorgangId.split('-')[1]}&method=select&offset=0&anzahl=200&sort=3&direction=desc`,
         scraped: false,
       });
       return;
