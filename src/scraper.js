@@ -16,15 +16,15 @@ class Scraper {
   options = {
     selectPeriods: false,
     selectOperationTypes: false,
-    logStartSearchProgress: () => {},
-    logUpdateSearchProgress: () => {},
-    logStopSearchProgress: () => {},
-    logStartDataProgress: () => {},
-    logUpdateDataProgress: () => {},
-    logStopDataProgress: () => {},
-    logFinished: () => {},
-    logError: () => {},
-    outScraperData: () => {},
+    logStartSearchProgress: () => { },
+    logUpdateSearchProgress: () => { },
+    logStopSearchProgress: () => { },
+    logStartDataProgress: () => { },
+    logUpdateDataProgress: () => { },
+    logStopDataProgress: () => { },
+    logFinished: () => { },
+    logError: () => { },
+    outScraperData: () => { },
     doScrape: () => true,
     browserStackSize: 1,
     resultsPerPage: 200,
@@ -364,7 +364,7 @@ class Scraper {
         id: vorgangId.split('-')[1],
         url: `/dip21.web/searchProcedures/simple_search_list.do?selId=${
           vorgangId.split('-')[1]
-        }&method=select&offset=0&anzahl=200&sort=3&direction=desc`,
+          }&method=select&offset=0&anzahl=200&sort=3&direction=desc`,
         scraped: false,
       });
       return;
