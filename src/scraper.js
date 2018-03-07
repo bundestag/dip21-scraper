@@ -130,6 +130,7 @@ class Scraper {
 
   getProceduresFromSearch = async ({ browser, browserIndex }) => {
     while (this.filters.findIndex(({ scraped }) => !scraped) !== -1) {
+      let hasError = false;
       const filterIndex = this.filters.findIndex(({ scraped }) => !scraped);
       this.filters[filterIndex].scraped = true;
       try {
@@ -152,6 +153,7 @@ class Scraper {
         });
         this.status.search.instances.completed += 1;
       } catch (error) {
+        hasError = true;
         this.options.logError({ error });
         this.filters[filterIndex].scraped = false;
         this.stack[browserIndex].errors += 1;
@@ -169,12 +171,13 @@ class Scraper {
             .catch(async () => {});
         }
       }
-      this.options.logUpdateSearchProgress(this.status);
+      this.options.logUpdateSearchProgress({ ...this.status, hasError });
     }
   };
 
   async startAnalyse(browserIndex) {
     while (this.procedures.findIndex(({ scraped }) => !scraped) !== -1) {
+      let hasError = false;
       // process.stdout.write('.');
       const linkIndex = this.procedures.findIndex(({ scraped }) => !scraped);
 
@@ -190,6 +193,7 @@ class Scraper {
           this.stack[browserIndex].scraped += 1;
         })
         .catch(async (error) => {
+          hasError = true;
           this.options.logError({ error });
           this.procedures[linkIndex].scraped = false;
           this.stack[browserIndex].used = false;
@@ -214,6 +218,7 @@ class Scraper {
         retries: this.retries,
         maxRetries: this.options.maxRetries,
         browsers: this.stack,
+        hasError,
       });
     }
   }

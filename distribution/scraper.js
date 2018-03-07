@@ -98,6 +98,7 @@ class Scraper {
         while (_this.filters.findIndex(function ({ scraped }) {
           return !scraped;
         }) !== -1) {
+          let hasError = false;
           const filterIndex = _this.filters.findIndex(function ({ scraped }) {
             return !scraped;
           });
@@ -122,6 +123,7 @@ class Scraper {
             });
             _this.status.search.instances.completed += 1;
           } catch (error) {
+            hasError = true;
             _this.options.logError({ error });
             _this.filters[filterIndex].scraped = false;
             _this.stack[browserIndex].errors += 1;
@@ -137,7 +139,7 @@ class Scraper {
               }).catch(_asyncToGenerator(function* () {}));
             }
           }
-          _this.options.logUpdateSearchProgress(_this.status);
+          _this.options.logUpdateSearchProgress(_extends({}, _this.status, { hasError }));
         }
       });
 
@@ -399,6 +401,7 @@ class Scraper {
       while (_this3.procedures.findIndex(function ({ scraped }) {
         return !scraped;
       }) !== -1) {
+        let hasError = false;
         // process.stdout.write('.');
         const linkIndex = _this3.procedures.findIndex(function ({ scraped }) {
           return !scraped;
@@ -415,6 +418,7 @@ class Scraper {
           _this3.stack[browserIndex].scraped += 1;
         })).catch((() => {
           var _ref14 = _asyncToGenerator(function* (error) {
+            hasError = true;
             _this3.options.logError({ error });
             _this3.procedures[linkIndex].scraped = false;
             _this3.stack[browserIndex].used = false;
@@ -447,7 +451,8 @@ class Scraper {
           value: _this3.completedLinks,
           retries: _this3.retries,
           maxRetries: _this3.options.maxRetries,
-          browsers: _this3.stack
+          browsers: _this3.stack,
+          hasError
         });
       }
     })();
