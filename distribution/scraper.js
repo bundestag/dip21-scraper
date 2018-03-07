@@ -373,7 +373,7 @@ class Scraper {
           _this2.availableFilters = yield _this2.takeSearchableValues();
           hasData = true;
         } catch (error) {
-          console.log('bundestag down (search)', error);
+          console.log('bundestag down (search)');
           yield new Promise(function (resolve) {
             return setTimeout(function () {
               resolve();
@@ -438,13 +438,14 @@ class Scraper {
           _this3.completedLinks += 1;
           _this3.stack[browserIndex].used = false;
           _this3.stack[browserIndex].scraped += 1;
+          _this3.stack[browserIndex].errors = 0;
         })).catch((() => {
           var _ref13 = _asyncToGenerator(function* (error) {
             hasError = true;
             _this3.options.logError({ error });
             _this3.procedures[linkIndex].scraped = false;
             _this3.stack[browserIndex].used = false;
-            _this3.stack[browserIndex].errors = 0;
+            _this3.stack[browserIndex].errors += 1;
 
             yield new Promise(function (resolve) {
               setTimeout(function () {
