@@ -156,7 +156,7 @@ class Scraper {
           formAction,
         });
         this.status.search.instances.completed += 1;
-        this.stack[browserIndex].errors = this.stack[browserIndex].errors > 0 ? this.stack[browserIndex].errors - 1 : 0;
+        this.stack[browserIndex].errors = 0;
       } catch (error) {
         hasError = true;
         this.options.logError({ error });
@@ -201,7 +201,7 @@ class Scraper {
           this.options.logError({ error });
           this.procedures[linkIndex].scraped = false;
           this.stack[browserIndex].used = false;
-          this.stack[browserIndex].errors += this.stack[browserIndex].errors > 0 ? this.stack[browserIndex].errors - 1 : 0;
+          this.stack[browserIndex].errors = 0;
 
           await new Promise((resolve) => {
             setTimeout(() => {

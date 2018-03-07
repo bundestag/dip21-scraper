@@ -116,7 +116,7 @@ class Scraper {
               formAction
             });
             _this.status.search.instances.completed += 1;
-            _this.stack[browserIndex].errors = _this.stack[browserIndex].errors > 0 ? _this.stack[browserIndex].errors - 1 : 0;
+            _this.stack[browserIndex].errors = 0;
           } catch (error) {
             hasError = true;
             _this.options.logError({ error });
@@ -444,7 +444,7 @@ class Scraper {
             _this3.options.logError({ error });
             _this3.procedures[linkIndex].scraped = false;
             _this3.stack[browserIndex].used = false;
-            _this3.stack[browserIndex].errors += _this3.stack[browserIndex].errors > 0 ? _this3.stack[browserIndex].errors - 1 : 0;
+            _this3.stack[browserIndex].errors = 0;
 
             yield new Promise(function (resolve) {
               setTimeout(function () {
