@@ -16,15 +16,15 @@ class Scraper {
   options = {
     selectPeriods: false,
     selectOperationTypes: false,
-    logStartSearchProgress: () => {},
-    logUpdateSearchProgress: () => {},
-    logStopSearchProgress: () => {},
-    logStartDataProgress: () => {},
-    logUpdateDataProgress: () => {},
-    logStopDataProgress: () => {},
-    logFinished: () => {},
-    logError: () => {},
-    outScraperData: () => {},
+    logStartSearchProgress: () => { },
+    logUpdateSearchProgress: () => { },
+    logStopSearchProgress: () => { },
+    logStartDataProgress: () => { },
+    logUpdateDataProgress: () => { },
+    logStopDataProgress: () => { },
+    logFinished: () => { },
+    logError: () => { },
+    outScraperData: () => { },
     doScrape: () => true,
     browserStackSize: 1,
     resultsPerPage: 200,
@@ -83,7 +83,7 @@ class Scraper {
         this.availableFilters = await this.takeSearchableValues();
         hasData = true;
       } catch (error) {
-        console.log('bundestag down (search)', error);
+        console.log('bundestag down (search)');
         await new Promise(resolve => setTimeout(() => {
           resolve();
         }, 3000));
@@ -195,13 +195,14 @@ class Scraper {
           this.completedLinks += 1;
           this.stack[browserIndex].used = false;
           this.stack[browserIndex].scraped += 1;
+          this.stack[browserIndex].errors = 0;
         })
         .catch(async (error) => {
           hasError = true;
           this.options.logError({ error });
           this.procedures[linkIndex].scraped = false;
           this.stack[browserIndex].used = false;
-          this.stack[browserIndex].errors = 0;
+          this.stack[browserIndex].errors += 1;
 
           await new Promise((resolve) => {
             setTimeout(() => {
@@ -362,9 +363,7 @@ class Scraper {
       const vorgangId = searchResultBody.match(procedureIdRegex)[1];
       this.procedures.push({
         id: vorgangId.split('-')[1],
-        url: `/dip21.web/searchProcedures/simple_search_list.do?selId=${
-          vorgangId.split('-')[1]
-        }&method=select&offset=0&anzahl=200&sort=3&direction=desc`,
+        url: `/dip21.web/searchProcedures/simple_search_list.do?selId=${vorgangId.split('-')[1]}&method=select&offset=0&anzahl=200&sort=3&direction=desc`,
         scraped: false,
       });
       return;
