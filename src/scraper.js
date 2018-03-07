@@ -71,22 +71,23 @@ class Scraper {
         }));
         stackCreated = true;
       } catch (error) {
+        console.log('bundestag down');
         await new Promise(resolve => setTimeout(() => {
           resolve();
         }, 3000));
-        console.log('bundestag down');
       }
     }
     let hasData = false;
     while (!hasData) {
-      this.availableFilters = await this.takeSearchableValues().then((result) => {
+      try {
+        this.availableFilters = await this.takeSearchableValues();
         hasData = true;
-        return result;
-      }).catch(async (error) => {
+      } catch (error) {
+        console.log('bundestag down');
         await new Promise(resolve => setTimeout(() => {
           resolve();
         }, 3000));
-      });
+      }
     }
     const filtersSelected = await this.configureFilter(this.availableFilters);
 

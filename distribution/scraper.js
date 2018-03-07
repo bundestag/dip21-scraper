@@ -358,32 +358,27 @@ class Scraper {
           }));
           stackCreated = true;
         } catch (error) {
+          console.log('bundestag down');
           yield new Promise(function (resolve) {
             return setTimeout(function () {
               resolve();
             }, 3000);
           });
-          console.log('bundestag down');
         }
       }
       let hasData = false;
       while (!hasData) {
-        _this2.availableFilters = yield _this2.takeSearchableValues().then(function (result) {
+        try {
+          _this2.availableFilters = yield _this2.takeSearchableValues();
           hasData = true;
-          return result;
-        }).catch((() => {
-          var _ref10 = _asyncToGenerator(function* (error) {
-            yield new Promise(function (resolve) {
-              return setTimeout(function () {
-                resolve();
-              }, 3000);
-            });
+        } catch (error) {
+          console.log('bundestag down');
+          yield new Promise(function (resolve) {
+            return setTimeout(function () {
+              resolve();
+            }, 3000);
           });
-
-          return function (_x6) {
-            return _ref10.apply(this, arguments);
-          };
-        })());
+        }
       }
       const filtersSelected = yield _this2.configureFilter(_this2.availableFilters);
 
@@ -399,12 +394,12 @@ class Scraper {
       _this2.options.logStopSearchProgress();
 
       yield Promise.all(_this2.stack.map((() => {
-        var _ref11 = _asyncToGenerator(function* (browser, browserIndex) {
+        var _ref10 = _asyncToGenerator(function* (browser, browserIndex) {
           yield _this2.startAnalyse(browserIndex);
         });
 
-        return function (_x7, _x8) {
-          return _ref11.apply(this, arguments);
+        return function (_x6, _x7) {
+          return _ref10.apply(this, arguments);
         };
       })())).then(_asyncToGenerator(function* () {
         _this2.options.logUpdateDataProgress({
@@ -443,7 +438,7 @@ class Scraper {
           _this3.stack[browserIndex].used = false;
           _this3.stack[browserIndex].scraped += 1;
         })).catch((() => {
-          var _ref14 = _asyncToGenerator(function* (error) {
+          var _ref13 = _asyncToGenerator(function* (error) {
             hasError = true;
             _this3.options.logError({ error });
             _this3.procedures[linkIndex].scraped = false;
@@ -458,27 +453,27 @@ class Scraper {
 
             if (_this3.stack[browserIndex].errors >= 5) {
               yield _this3.createNewBrowser({ browserObject: _this3.stack[browserIndex] }).then((() => {
-                var _ref15 = _asyncToGenerator(function* (newBrowser) {
+                var _ref14 = _asyncToGenerator(function* (newBrowser) {
                   _this3.stack[browserIndex] = newBrowser;
+                });
+
+                return function (_x9) {
+                  return _ref14.apply(this, arguments);
+                };
+              })()).catch((() => {
+                var _ref15 = _asyncToGenerator(function* (error2) {
+                  _this3.options.logError({ error2 });
                 });
 
                 return function (_x10) {
                   return _ref15.apply(this, arguments);
                 };
-              })()).catch((() => {
-                var _ref16 = _asyncToGenerator(function* (error2) {
-                  _this3.options.logError({ error2 });
-                });
-
-                return function (_x11) {
-                  return _ref16.apply(this, arguments);
-                };
               })());
             }
           });
 
-          return function (_x9) {
-            return _ref14.apply(this, arguments);
+          return function (_x8) {
+            return _ref13.apply(this, arguments);
           };
         })());
         _this3.options.logUpdateDataProgress({
