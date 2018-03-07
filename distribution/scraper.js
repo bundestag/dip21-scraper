@@ -11,12 +11,10 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 function _asyncToGenerator(fn) { return function () { var gen = fn.apply(this, arguments); return new Promise(function (resolve, reject) { function step(key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { return Promise.resolve(value).then(function (value) { step("next", value); }, function (err) { step("throw", err); }); } } return step("next"); }); }; } /* eslint-disable max-len */
 /* eslint-disable no-throw-literal */
 
-const $ = require('cheerio');
 const X2JS = require('x2js');
 const Url = require('url');
 const Querystring = require('querystring');
 const _ = require('lodash');
-const chalk = require('chalk');
 
 const x2j = new X2JS();
 
@@ -40,9 +38,6 @@ class Scraper {
       outScraperData: () => {},
       doScrape: () => true,
       browserStackSize: 1,
-      timeoutStart: 3001,
-      timeoutSearch: () => 5001,
-      defaultTimeout: 15000,
       resultsPerPage: 200
     };
     this.urls = {
@@ -174,16 +169,25 @@ class Scraper {
       return _this.createNewBrowser();
     }));
 
-    this.createNewBrowser = _asyncToGenerator(function* () {
-      const browser = new _DipBrowser2.default();
-      yield browser.initialize();
-      return {
-        browser,
-        used: false,
-        scraped: 0,
-        errors: 0
+    this.createNewBrowser = (() => {
+      var _ref5 = _asyncToGenerator(function* ({ browserObject } = {}) {
+        if (browserObject) {
+          delete browserObject.browser; // eslint-disable-line
+        }
+        const browser = new _DipBrowser2.default();
+        yield browser.initialize();
+        return {
+          browser,
+          used: false,
+          scraped: 0,
+          errors: 0
+        };
+      });
+
+      return function () {
+        return _ref5.apply(this, arguments);
       };
-    });
+    })();
 
     this.configureFilter = (() => {
       var _ref6 = _asyncToGenerator(function* ({ periods, operationTypes }) {
@@ -249,6 +253,9 @@ class Scraper {
       const searchOptions = yield browserObj.browser.getBeratungsablaeufeSearchOptions({
         body: searchBody
       });
+      if (searchOptions.vorgangstyp.length === 0) {
+        throw new Error();
+      }
       browserObj.used = false;
       return {
         periods: searchOptions.wahlperioden,
@@ -325,7 +332,7 @@ class Scraper {
 
     this.getProcedureData = (() => {
       var _ref9 = _asyncToGenerator(function* ({ html }) {
-        const xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
+        const xmlRegex = /<VORGANG>(.|[\r\n])*<\/VORGANG>/;
         const xmlString = html.match(xmlRegex)[0].replace('<- VORGANGSABLAUF ->', '');
         return x2j.xml2js(xmlString);
       });
@@ -342,22 +349,42 @@ class Scraper {
     return _asyncToGenerator(function* () {
       _this2.options = _extends({}, _this2.options, options);
       const { browserStackSize } = _this2.options;
-      _this2.stack = yield Promise.all(_this2.createBrowserStack({
-        size: browserStackSize
-      })).catch(function () {
-        throw {
-          error: 'cant create browserstack! Bundestag down?'
-        };
-      });
-      _this2.availableFilters = yield _this2.takeSearchableValues().catch(function (error) {
-        _this2.finalize();
-        throw {
-          error,
-          message: 'Bundestag ist DOWN!!!',
-          type: chalk.red('fatal'),
-          code: 1001
-        };
-      });
+
+      let stackCreated = false;
+      while (!stackCreated) {
+        try {
+          _this2.stack = yield Promise.all(_this2.createBrowserStack({
+            size: browserStackSize
+          }));
+          stackCreated = true;
+        } catch (error) {
+          yield new Promise(function (resolve) {
+            return setTimeout(function () {
+              resolve();
+            }, 3000);
+          });
+          console.log('bundestag down');
+        }
+      }
+      let hasData = false;
+      while (!hasData) {
+        _this2.availableFilters = yield _this2.takeSearchableValues().then(function (result) {
+          hasData = true;
+          return result;
+        }).catch((() => {
+          var _ref10 = _asyncToGenerator(function* (error) {
+            yield new Promise(function (resolve) {
+              return setTimeout(function () {
+                resolve();
+              }, 3000);
+            });
+          });
+
+          return function (_x6) {
+            return _ref10.apply(this, arguments);
+          };
+        })());
+      }
       const filtersSelected = yield _this2.configureFilter(_this2.availableFilters);
 
       _this2.options.logStartSearchProgress(_this2.status);
@@ -372,12 +399,12 @@ class Scraper {
       _this2.options.logStopSearchProgress();
 
       yield Promise.all(_this2.stack.map((() => {
-        var _ref10 = _asyncToGenerator(function* (browser, browserIndex) {
+        var _ref11 = _asyncToGenerator(function* (browser, browserIndex) {
           yield _this2.startAnalyse(browserIndex);
         });
 
-        return function (_x6, _x7) {
-          return _ref10.apply(this, arguments);
+        return function (_x7, _x8) {
+          return _ref11.apply(this, arguments);
         };
       })())).then(_asyncToGenerator(function* () {
         _this2.options.logUpdateDataProgress({
@@ -416,7 +443,7 @@ class Scraper {
           _this3.stack[browserIndex].used = false;
           _this3.stack[browserIndex].scraped += 1;
         })).catch((() => {
-          var _ref13 = _asyncToGenerator(function* (error) {
+          var _ref14 = _asyncToGenerator(function* (error) {
             hasError = true;
             _this3.options.logError({ error });
             _this3.procedures[linkIndex].scraped = false;
@@ -431,27 +458,27 @@ class Scraper {
 
             if (_this3.stack[browserIndex].errors >= 5) {
               yield _this3.createNewBrowser({ browserObject: _this3.stack[browserIndex] }).then((() => {
-                var _ref14 = _asyncToGenerator(function* (newBrowser) {
+                var _ref15 = _asyncToGenerator(function* (newBrowser) {
                   _this3.stack[browserIndex] = newBrowser;
-                });
-
-                return function (_x9) {
-                  return _ref14.apply(this, arguments);
-                };
-              })()).catch((() => {
-                var _ref15 = _asyncToGenerator(function* (error2) {
-                  _this3.options.logError({ error2 });
                 });
 
                 return function (_x10) {
                   return _ref15.apply(this, arguments);
                 };
+              })()).catch((() => {
+                var _ref16 = _asyncToGenerator(function* (error2) {
+                  _this3.options.logError({ error2 });
+                });
+
+                return function (_x11) {
+                  return _ref16.apply(this, arguments);
+                };
               })());
             }
           });
 
-          return function (_x8) {
-            return _ref13.apply(this, arguments);
+          return function (_x9) {
+            return _ref14.apply(this, arguments);
           };
         })());
         _this3.options.logUpdateDataProgress({
@@ -499,16 +526,14 @@ class Scraper {
     var _this6 = this;
 
     return _asyncToGenerator(function* () {
-      const procedureIdRegex = /\[ID:&#xA0;(.*?)\]/;
+      const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
       const { body: entryBody } = yield dipBrowser.request({
         uri: link
       });
 
-      const procedureHtml = $('#inhaltsbereich', entryBody).html();
-
       let procedureId;
       try {
-        procedureId = procedureHtml.match(procedureIdRegex)[1]; // eslint-disable-line
+        procedureId = entryBody.match(procedureIdRegex)[1]; // eslint-disable-line
       } catch (error) {
         throw {
           error,
@@ -526,16 +551,14 @@ class Scraper {
         };
       }
 
-      const dataProcedure = yield _this6.getProcedureData({ html: procedureHtml });
+      const dataProcedure = yield _this6.getProcedureData({ html: entryBody });
 
       const { body: entryRunningBody } = yield dipBrowser.request({
         uri: `${_this6.urls.processRunning}${vorgangId}`
       });
 
-      const procedureRunningHtml = $('#inhaltsbereich', entryRunningBody).html();
-
       const dataProcedureRunning = yield Scraper.getProcedureRunningData({
-        html: procedureRunningHtml
+        html: entryRunningBody
       });
 
       const procedureData = _extends({
@@ -547,7 +570,7 @@ class Scraper {
 
   static getProcedureRunningData({ html }) {
     return _asyncToGenerator(function* () {
-      const xmlRegex = /<VORGANGSABLAUF>(.|\n)*?<\/VORGANGSABLAUF>/;
+      const xmlRegex = /<VORGANGSABLAUF>(.|[\r\n])*<\/VORGANGSABLAUF>/;
       const xmlString = html.match(xmlRegex)[0];
       return x2j.xml2js(xmlString);
     })();
