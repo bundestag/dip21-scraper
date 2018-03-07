@@ -55,32 +55,36 @@ class DipBrowser {
       return body;
     });
 
-    this.getSelectOptions = ({ $, selector }) => _.map($(selector).children(), ({ children, attribs: { value } }) => ({
-      name: children[0].data,
-      value
-    }));
+    this.getSelectOptions = ({ selectHtml }) => {
+      const optionMatches = selectHtml.match(/<option.*?>.*?<\/option>/g).map(o => {
+        const oMatches = o.match(/<option.*?value="(.*?)".*?>(.*?)<\/option>/);
+        return {
+          name: oMatches[2],
+          value: oMatches[1]
+        };
+      });
+      return optionMatches;
+    };
 
     this.getBeratungsablaeufeSearchOptions = (() => {
       var _ref3 = _asyncToGenerator(function* ({ body }) {
-        const $ = cheerio.load(body);
-        const wahlperioden = _this.getSelectOptions({
-          $,
-          selector: '#ProceduresSimpleSearchForm #wahlperiode'
-        });
-        let vorgangstyp = _this.getSelectOptions({
-          $,
-          selector: '#ProceduresSimpleSearchForm #includeVorgangstyp'
+        const periodMatches = body.match(/<select name="wahlperiode".*?>(.|\s)*?<\/select>/);
+        const periods = _this.getSelectOptions({
+          selectHtml: periodMatches[0]
         });
 
-        vorgangstyp = vorgangstyp.map(function (e) {
+        const operationTypesMatches = body.match(/<select name="vorgangstyp".*?>(.|\s)*?<\/select>/);
+        let operationTypes = _this.getSelectOptions({
+          selectHtml: operationTypesMatches[0]
+        });
+        operationTypes = operationTypes.map(function (e) {
           return _extends({}, e, {
             number: e.name.split(' - ')[0]
           });
         });
-
         return {
-          wahlperioden,
-          vorgangstyp
+          wahlperioden: periods,
+          vorgangstyp: operationTypes
         };
       });
 
@@ -124,11 +128,11 @@ class DipBrowser {
 
     this.getResultInfo = (() => {
       var _ref6 = _asyncToGenerator(function* ({ body }) {
-        if (cheerio('#inhaltsbereich > div.inhalt > div.contentBox > fieldset.field.infoField > ul > li', body).length > 0) {
+        if (body.includes('Es konnte kein Datensatz gefunden werden.')) {
           return false;
         }
         const reg = /Seite (\d*) von (\d*) \(Treffer (\d*) bis (\d*) von (\d*)\)/;
-        const paginator = cheerio('#inhaltsbereich', body).html().match(reg);
+        const paginator = body.match(reg);
         if (!paginator) {
           return 'isEntry';
         }

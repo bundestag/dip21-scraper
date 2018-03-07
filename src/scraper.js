@@ -3,12 +3,10 @@
 
 import DipBrowser from './DipBrowser';
 
-const $ = require('cheerio');
 const X2JS = require('x2js');
 const Url = require('url');
 const Querystring = require('querystring');
 const _ = require('lodash');
-const chalk = require('chalk');
 
 const x2j = new X2JS();
 
@@ -29,12 +27,8 @@ class Scraper {
     outScraperData: () => {},
     doScrape: () => true,
     browserStackSize: 1,
-    timeoutStart: 3001,
-    timeoutSearch: () => 5001,
-    defaultTimeout: 15000,
     resultsPerPage: 200,
   };
-
 
   urls = {
     basisInfos: 'https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail.do',
@@ -68,22 +62,33 @@ class Scraper {
   async scrape(options) {
     this.options = { ...this.options, ...options };
     const { browserStackSize } = this.options;
-    this.stack = await Promise.all(this.createBrowserStack({
-      size: browserStackSize,
-    })).catch(() => {
-      throw {
-        error: 'cant create browserstack! Bundestag down?',
-      };
-    });
-    this.availableFilters = await this.takeSearchableValues().catch((error) => {
-      this.finalize();
-      throw {
-        error,
-        message: 'Bundestag ist DOWN!!!',
-        type: chalk.red('fatal'),
-        code: 1001,
-      };
-    });
+
+    let stackCreated = false;
+    while (!stackCreated) {
+      try {
+        this.stack = await Promise.all(this.createBrowserStack({
+          size: browserStackSize,
+        }));
+        stackCreated = true;
+      } catch (error) {
+        console.log('bundestag down (stack)');
+        await new Promise(resolve => setTimeout(() => {
+          resolve();
+        }, 3000));
+      }
+    }
+    let hasData = false;
+    while (!hasData) {
+      try {
+        this.availableFilters = await this.takeSearchableValues();
+        hasData = true;
+      } catch (error) {
+        console.log('bundestag down (search)', error);
+        await new Promise(resolve => setTimeout(() => {
+          resolve();
+        }, 3000));
+      }
+    }
     const filtersSelected = await this.configureFilter(this.availableFilters);
 
     this.options.logStartSearchProgress(this.status);
@@ -151,6 +156,7 @@ class Scraper {
           formAction,
         });
         this.status.search.instances.completed += 1;
+        this.stack[browserIndex].errors = 0;
       } catch (error) {
         hasError = true;
         this.options.logError({ error });
@@ -195,7 +201,7 @@ class Scraper {
           this.options.logError({ error });
           this.procedures[linkIndex].scraped = false;
           this.stack[browserIndex].used = false;
-          this.stack[browserIndex].errors += 1;
+          this.stack[browserIndex].errors = 0;
 
           await new Promise((resolve) => {
             setTimeout(() => {
@@ -246,7 +252,10 @@ class Scraper {
 
   createBrowserStack = ({ size }) => [...Array(size)].map(async () => this.createNewBrowser());
 
-  createNewBrowser = async () => {
+  createNewBrowser = async ({ browserObject } = {}) => {
+    if (browserObject) {
+      delete browserObject.browser; // eslint-disable-line
+    }
     const browser = new DipBrowser();
     await browser.initialize();
     return {
@@ -325,6 +334,9 @@ class Scraper {
     const searchOptions = await browserObj.browser.getBeratungsablaeufeSearchOptions({
       body: searchBody,
     });
+    if (searchOptions.vorgangstyp.length === 0) {
+      throw new Error();
+    }
     browserObj.used = false;
     return {
       periods: searchOptions.wahlperioden,
@@ -394,16 +406,14 @@ class Scraper {
   };
 
   async saveJson({ link, dipBrowser }) {
-    const procedureIdRegex = /\[ID:&#xA0;(.*?)\]/;
+    const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
     const { body: entryBody } = await dipBrowser.request({
       uri: link,
     });
 
-    const procedureHtml = $('#inhaltsbereich', entryBody).html();
-
     let procedureId;
     try {
-      procedureId = procedureHtml.match(procedureIdRegex)[1]; // eslint-disable-line
+      procedureId = entryBody.match(procedureIdRegex)[1]; // eslint-disable-line
     } catch (error) {
       throw {
         error,
@@ -421,16 +431,14 @@ class Scraper {
       };
     }
 
-    const dataProcedure = await this.getProcedureData({ html: procedureHtml });
+    const dataProcedure = await this.getProcedureData({ html: entryBody });
 
     const { body: entryRunningBody } = await dipBrowser.request({
       uri: `${this.urls.processRunning}${vorgangId}`,
     });
 
-    const procedureRunningHtml = $('#inhaltsbereich', entryRunningBody).html();
-
     const dataProcedureRunning = await Scraper.getProcedureRunningData({
-      html: procedureRunningHtml,
+      html: entryRunningBody,
     });
 
     const procedureData = {
@@ -442,13 +450,13 @@ class Scraper {
   }
 
   getProcedureData = async ({ html }) => {
-    const xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
+    const xmlRegex = /<VORGANG>(.|[\r\n])*<\/VORGANG>/;
     const xmlString = html.match(xmlRegex)[0].replace('<- VORGANGSABLAUF ->', '');
     return x2j.xml2js(xmlString);
   };
 
   static async getProcedureRunningData({ html }) {
-    const xmlRegex = /<VORGANGSABLAUF>(.|\n)*?<\/VORGANGSABLAUF>/;
+    const xmlRegex = /<VORGANGSABLAUF>(.|[\r\n])*<\/VORGANGSABLAUF>/;
     const xmlString = html.match(xmlRegex)[0];
     return x2j.xml2js(xmlString);
   }

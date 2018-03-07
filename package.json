@@ -10,6 +10,7 @@
   },
   "scripts": {
     "start": "babel-node src/cli.js",
+    "dev": "babel-node --trace_gc src/cli.js",
     "lint": "eslint ./src",
     "build": "babel src --out-dir distribution",
     "prepublish": "npm run build",
