@@ -42,7 +42,6 @@ class Scraper {
       browserStackSize: 1,
       timeoutStart: 3001,
       timeoutSearch: () => 5001,
-      maxRetries: () => 20,
       defaultTimeout: 15000,
       resultsPerPage: 200
     };
@@ -131,10 +130,11 @@ class Scraper {
                 resolve();
               }, 3000);
             });
-            if (_this.stack[browserIndex].errors >= 5) {
-              yield _this.createNewBrowser({ browserObject: _this.stack[browserIndex] }).then(function (newBrowser) {
-                _this.stack[browserIndex] = newBrowser;
-              }).catch(_asyncToGenerator(function* () {}));
+            if (_this.stack[browserIndex].errors > 5) {
+              throw {
+                message: 'to many search errors',
+                code: 1015
+              };
             }
           }
           _this.options.logUpdateSearchProgress(_this.status);
@@ -184,7 +184,7 @@ class Scraper {
     });
 
     this.configureFilter = (() => {
-      var _ref7 = _asyncToGenerator(function* ({ periods, operationTypes }) {
+      var _ref6 = _asyncToGenerator(function* ({ periods, operationTypes }) {
         // Periods
         let selectedPeriods = [];
         if (_.isArray(_this.options.selectPeriods)) {
@@ -234,7 +234,7 @@ class Scraper {
       });
 
       return function (_x3) {
-        return _ref7.apply(this, arguments);
+        return _ref6.apply(this, arguments);
       };
     })();
 
@@ -255,7 +255,7 @@ class Scraper {
     });
 
     this.startSearch = (() => {
-      var _ref9 = _asyncToGenerator(function* ({
+      var _ref8 = _asyncToGenerator(function* ({
         browser, formData, formMethod, formAction
       }) {
         const { body: searchResultBody } = yield browser.browser.getSearchResultPage({
@@ -317,19 +317,19 @@ class Scraper {
       });
 
       return function (_x4) {
-        return _ref9.apply(this, arguments);
+        return _ref8.apply(this, arguments);
       };
     })();
 
     this.getProcedureData = (() => {
-      var _ref10 = _asyncToGenerator(function* ({ html }) {
+      var _ref9 = _asyncToGenerator(function* ({ html }) {
         const xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
         const xmlString = html.match(xmlRegex)[0].replace('<- VORGANGSABLAUF ->', '');
         return x2j.xml2js(xmlString);
       });
 
       return function (_x5) {
-        return _ref10.apply(this, arguments);
+        return _ref9.apply(this, arguments);
       };
     })();
   }
@@ -357,6 +357,7 @@ class Scraper {
         };
       });
       const filtersSelected = yield _this2.configureFilter(_this2.availableFilters);
+
       _this2.options.logStartSearchProgress(_this2.status);
       yield _this2.collectProcedures(filtersSelected);
 
@@ -364,24 +365,22 @@ class Scraper {
       _this2.completedLinks = 0;
       yield _this2.options.logStartDataProgress({
         sum: _this2.procedures.length,
-        retries: _this2.retries,
-        maxRetries: _this2.options.maxRetries
+        retries: _this2.retries
       });
       _this2.options.logStopSearchProgress();
 
       yield Promise.all(_this2.stack.map((() => {
-        var _ref11 = _asyncToGenerator(function* (browser, browserIndex) {
+        var _ref10 = _asyncToGenerator(function* (browser, browserIndex) {
           yield _this2.startAnalyse(browserIndex);
         });
 
         return function (_x6, _x7) {
-          return _ref11.apply(this, arguments);
+          return _ref10.apply(this, arguments);
         };
       })())).then(_asyncToGenerator(function* () {
         _this2.options.logUpdateDataProgress({
           value: _this2.completedLinks,
           retries: _this2.retries,
-          maxRetries: _this2.options.maxRetries,
           browsers: _this2.stack
         });
         // Finalize
@@ -414,7 +413,7 @@ class Scraper {
           _this3.stack[browserIndex].used = false;
           _this3.stack[browserIndex].scraped += 1;
         })).catch((() => {
-          var _ref14 = _asyncToGenerator(function* (error) {
+          var _ref13 = _asyncToGenerator(function* (error) {
             _this3.options.logError({ error });
             _this3.procedures[linkIndex].scraped = false;
             _this3.stack[browserIndex].used = false;
@@ -428,25 +427,24 @@ class Scraper {
 
             if (_this3.stack[browserIndex].errors >= 5) {
               yield _this3.createNewBrowser({ browserObject: _this3.stack[browserIndex] }).then((() => {
-                var _ref15 = _asyncToGenerator(function* (newBrowser) {
+                var _ref14 = _asyncToGenerator(function* (newBrowser) {
                   _this3.stack[browserIndex] = newBrowser;
                 });
 
                 return function (_x9) {
-                  return _ref15.apply(this, arguments);
+                  return _ref14.apply(this, arguments);
                 };
               })()).catch(_asyncToGenerator(function* () {}));
             }
           });
 
           return function (_x8) {
-            return _ref14.apply(this, arguments);
+            return _ref13.apply(this, arguments);
           };
         })());
         _this3.options.logUpdateDataProgress({
           value: _this3.completedLinks,
           retries: _this3.retries,
-          maxRetries: _this3.options.maxRetries,
           browsers: _this3.stack
         });
       }

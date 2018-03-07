@@ -31,10 +31,10 @@ class Scraper {
     browserStackSize: 1,
     timeoutStart: 3001,
     timeoutSearch: () => 5001,
-    maxRetries: () => 20,
     defaultTimeout: 15000,
     resultsPerPage: 200,
   };
+
 
   urls = {
     basisInfos: 'https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail.do',
@@ -85,6 +85,7 @@ class Scraper {
       };
     });
     const filtersSelected = await this.configureFilter(this.availableFilters);
+
     this.options.logStartSearchProgress(this.status);
     await this.collectProcedures(filtersSelected);
 
@@ -93,7 +94,6 @@ class Scraper {
     await this.options.logStartDataProgress({
       sum: this.procedures.length,
       retries: this.retries,
-      maxRetries: this.options.maxRetries,
     });
     this.options.logStopSearchProgress();
 
@@ -103,7 +103,6 @@ class Scraper {
       this.options.logUpdateDataProgress({
         value: this.completedLinks,
         retries: this.retries,
-        maxRetries: this.options.maxRetries,
         browsers: this.stack,
       });
       // Finalize
@@ -161,12 +160,11 @@ class Scraper {
             resolve();
           }, 3000);
         });
-        if (this.stack[browserIndex].errors >= 5) {
-          await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
-            .then((newBrowser) => {
-              this.stack[browserIndex] = newBrowser;
-            })
-            .catch(async () => {});
+        if (this.stack[browserIndex].errors > 5) {
+          throw {
+            message: 'to many search errors',
+            code: 1015,
+          };
         }
       }
       this.options.logUpdateSearchProgress(this.status);
@@ -212,7 +210,6 @@ class Scraper {
       this.options.logUpdateDataProgress({
         value: this.completedLinks,
         retries: this.retries,
-        maxRetries: this.options.maxRetries,
         browsers: this.stack,
       });
     }
