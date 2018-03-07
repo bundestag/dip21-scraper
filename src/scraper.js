@@ -208,7 +208,9 @@ class Scraper {
               .then(async (newBrowser) => {
                 this.stack[browserIndex] = newBrowser;
               })
-              .catch(async () => {});
+              .catch(async (error2) => {
+                this.options.logError({ error2 });
+              });
           }
         });
       this.options.logUpdateDataProgress({

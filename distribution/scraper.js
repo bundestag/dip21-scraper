@@ -438,7 +438,15 @@ class Scraper {
                 return function (_x9) {
                   return _ref14.apply(this, arguments);
                 };
-              })()).catch(_asyncToGenerator(function* () {}));
+              })()).catch((() => {
+                var _ref15 = _asyncToGenerator(function* (error2) {
+                  _this3.options.logError({ error2 });
+                });
+
+                return function (_x10) {
+                  return _ref15.apply(this, arguments);
+                };
+              })());
             }
           });
 
