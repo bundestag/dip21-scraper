@@ -182,6 +182,26 @@ class Scraper {
   async startAnalyse(browserIndex) {
     while (this.procedures.findIndex(({ scraped }) => !scraped) !== -1) {
       let hasError = false;
+      if (!this.stack[browserIndex].browser) {
+        this.options.logUpdateDataProgress({
+          value: this.completedLinks,
+          retries: this.retries,
+          browsers: this.stack,
+          hasError,
+        });
+        await new Promise((resolve) => {
+          setTimeout(() => {
+            resolve();
+          }, 3000);
+        });
+        await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
+          .then(async (newBrowser) => {
+            this.stack[browserIndex] = newBrowser;
+          })
+          .catch(async (error) => {
+            this.options.logError({ error });
+          });
+      }
       // process.stdout.write('.');
       const linkIndex = this.procedures.findIndex(({ scraped }) => !scraped);
 
@@ -215,7 +235,7 @@ class Scraper {
             browsers: this.stack,
             hasError,
           });
-          
+
           await new Promise((resolve) => {
             setTimeout(() => {
               resolve();

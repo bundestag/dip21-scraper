@@ -424,6 +424,36 @@ class Scraper {
         return !scraped;
       }) !== -1) {
         let hasError = false;
+        if (!_this3.stack[browserIndex].browser) {
+          _this3.options.logUpdateDataProgress({
+            value: _this3.completedLinks,
+            retries: _this3.retries,
+            browsers: _this3.stack,
+            hasError
+          });
+          yield new Promise(function (resolve) {
+            setTimeout(function () {
+              resolve();
+            }, 3000);
+          });
+          yield _this3.createNewBrowser({ browserObject: _this3.stack[browserIndex] }).then((() => {
+            var _ref12 = _asyncToGenerator(function* (newBrowser) {
+              _this3.stack[browserIndex] = newBrowser;
+            });
+
+            return function (_x8) {
+              return _ref12.apply(this, arguments);
+            };
+          })()).catch((() => {
+            var _ref13 = _asyncToGenerator(function* (error) {
+              _this3.options.logError({ error });
+            });
+
+            return function (_x9) {
+              return _ref13.apply(this, arguments);
+            };
+          })());
+        }
         // process.stdout.write('.');
         const linkIndex = _this3.procedures.findIndex(function ({ scraped }) {
           return !scraped;
@@ -446,7 +476,7 @@ class Scraper {
             hasError
           });
         })).catch((() => {
-          var _ref13 = _asyncToGenerator(function* (error) {
+          var _ref15 = _asyncToGenerator(function* (error) {
             hasError = true;
             _this3.options.logError({ error });
             _this3.procedures[linkIndex].scraped = false;
@@ -467,27 +497,27 @@ class Scraper {
 
             if (_this3.stack[browserIndex].errors >= 5) {
               yield _this3.createNewBrowser({ browserObject: _this3.stack[browserIndex] }).then((() => {
-                var _ref14 = _asyncToGenerator(function* (newBrowser) {
+                var _ref16 = _asyncToGenerator(function* (newBrowser) {
                   _this3.stack[browserIndex] = newBrowser;
                 });
 
-                return function (_x9) {
-                  return _ref14.apply(this, arguments);
+                return function (_x11) {
+                  return _ref16.apply(this, arguments);
                 };
               })()).catch((() => {
-                var _ref15 = _asyncToGenerator(function* (error2) {
+                var _ref17 = _asyncToGenerator(function* (error2) {
                   _this3.options.logError({ error2 });
                 });
 
-                return function (_x10) {
-                  return _ref15.apply(this, arguments);
+                return function (_x12) {
+                  return _ref17.apply(this, arguments);
                 };
               })());
             }
           });
 
-          return function (_x8) {
-            return _ref13.apply(this, arguments);
+          return function (_x10) {
+            return _ref15.apply(this, arguments);
           };
         })());
       }
