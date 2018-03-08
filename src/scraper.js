@@ -72,9 +72,7 @@ class Scraper {
         stackCreated = true;
       } catch (error) {
         console.log('bundestag down (stack)');
-        await new Promise(resolve => setTimeout(() => {
-          resolve();
-        }, 3000));
+        await this.timeout();
       }
     }
     let hasData = false;
@@ -84,9 +82,7 @@ class Scraper {
         hasData = true;
       } catch (error) {
         console.log('bundestag down (search)');
-        await new Promise(resolve => setTimeout(() => {
-          resolve();
-        }, 3000));
+        await this.timeout();
       }
     }
     const filtersSelected = await this.configureFilter(this.availableFilters);
@@ -134,7 +130,7 @@ class Scraper {
 
   getProceduresFromSearch = async ({ browser, browserIndex }) => {
     while (this.filters.findIndex(({ scraped }) => !scraped) !== -1) {
-      let hasError = false;
+      const hasError = false;
       const filterIndex = this.filters.findIndex(({ scraped }) => !scraped);
       this.filters[filterIndex].scraped = true;
       try {
@@ -157,17 +153,14 @@ class Scraper {
         });
         this.status.search.instances.completed += 1;
         this.stack[browserIndex].errors = 0;
+        this.options.logUpdateSearchProgress({ ...this.status, hasError });
       } catch (error) {
-        hasError = true;
         this.options.logError({ error });
         this.filters[filterIndex].scraped = false;
         this.stack[browserIndex].errors += 1;
+        this.options.logUpdateSearchProgress({ ...this.status, hasError: true });
 
-        await new Promise((resolve) => {
-          setTimeout(() => {
-            resolve();
-          }, 3000);
-        });
+        await this.timeout();
         if (this.stack[browserIndex].errors > 5) {
           throw {
             message: 'to many search errors',
@@ -175,13 +168,28 @@ class Scraper {
           };
         }
       }
-      this.options.logUpdateSearchProgress({ ...this.status, hasError });
     }
   };
 
   async startAnalyse(browserIndex) {
     while (this.procedures.findIndex(({ scraped }) => !scraped) !== -1) {
-      let hasError = false;
+      const hasError = false;
+      if (!this.stack[browserIndex].browser) {
+        this.options.logUpdateDataProgress({
+          value: this.completedLinks,
+          retries: this.retries,
+          browsers: this.stack,
+          hasError: true,
+        });
+        await this.timeout();
+        await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
+          .then(async (newBrowser) => {
+            this.stack[browserIndex] = newBrowser;
+          })
+          .catch(async (error) => {
+            this.options.logError({ error });
+          });
+      }
       // process.stdout.write('.');
       const linkIndex = this.procedures.findIndex(({ scraped }) => !scraped);
 
@@ -196,19 +204,26 @@ class Scraper {
           this.stack[browserIndex].used = false;
           this.stack[browserIndex].scraped += 1;
           this.stack[browserIndex].errors = 0;
+          this.options.logUpdateDataProgress({
+            value: this.completedLinks,
+            retries: this.retries,
+            browsers: this.stack,
+            hasError,
+          });
         })
         .catch(async (error) => {
-          hasError = true;
           this.options.logError({ error });
           this.procedures[linkIndex].scraped = false;
           this.stack[browserIndex].used = false;
           this.stack[browserIndex].errors += 1;
-
-          await new Promise((resolve) => {
-            setTimeout(() => {
-              resolve();
-            }, 3000);
+          this.options.logUpdateDataProgress({
+            value: this.completedLinks,
+            retries: this.retries,
+            browsers: this.stack,
+            hasError: true,
           });
+
+          await this.timeout();
 
           if (this.stack[browserIndex].errors >= 5) {
             await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
@@ -220,12 +235,6 @@ class Scraper {
               });
           }
         });
-      this.options.logUpdateDataProgress({
-        value: this.completedLinks,
-        retries: this.retries,
-        browsers: this.stack,
-        hasError,
-      });
     }
   }
 
@@ -459,6 +468,12 @@ class Scraper {
     const xmlString = html.match(xmlRegex)[0];
     return x2j.xml2js(xmlString);
   }
+
+  timeout = async () => new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, _.random(1000, 5000));
+  })
 }
 
 module.exports = Scraper;
