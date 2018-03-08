@@ -196,6 +196,12 @@ class Scraper {
           this.stack[browserIndex].used = false;
           this.stack[browserIndex].scraped += 1;
           this.stack[browserIndex].errors = 0;
+          this.options.logUpdateDataProgress({
+            value: this.completedLinks,
+            retries: this.retries,
+            browsers: this.stack,
+            hasError,
+          });
         })
         .catch(async (error) => {
           hasError = true;
@@ -203,7 +209,13 @@ class Scraper {
           this.procedures[linkIndex].scraped = false;
           this.stack[browserIndex].used = false;
           this.stack[browserIndex].errors += 1;
-
+          this.options.logUpdateDataProgress({
+            value: this.completedLinks,
+            retries: this.retries,
+            browsers: this.stack,
+            hasError,
+          });
+          
           await new Promise((resolve) => {
             setTimeout(() => {
               resolve();
@@ -220,12 +232,6 @@ class Scraper {
               });
           }
         });
-      this.options.logUpdateDataProgress({
-        value: this.completedLinks,
-        retries: this.retries,
-        browsers: this.stack,
-        hasError,
-      });
     }
   }
 

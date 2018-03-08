@@ -439,6 +439,12 @@ class Scraper {
           _this3.stack[browserIndex].used = false;
           _this3.stack[browserIndex].scraped += 1;
           _this3.stack[browserIndex].errors = 0;
+          _this3.options.logUpdateDataProgress({
+            value: _this3.completedLinks,
+            retries: _this3.retries,
+            browsers: _this3.stack,
+            hasError
+          });
         })).catch((() => {
           var _ref13 = _asyncToGenerator(function* (error) {
             hasError = true;
@@ -446,6 +452,12 @@ class Scraper {
             _this3.procedures[linkIndex].scraped = false;
             _this3.stack[browserIndex].used = false;
             _this3.stack[browserIndex].errors += 1;
+            _this3.options.logUpdateDataProgress({
+              value: _this3.completedLinks,
+              retries: _this3.retries,
+              browsers: _this3.stack,
+              hasError
+            });
 
             yield new Promise(function (resolve) {
               setTimeout(function () {
@@ -478,12 +490,6 @@ class Scraper {
             return _ref13.apply(this, arguments);
           };
         })());
-        _this3.options.logUpdateDataProgress({
-          value: _this3.completedLinks,
-          retries: _this3.retries,
-          browsers: _this3.stack,
-          hasError
-        });
       }
     })();
   }
