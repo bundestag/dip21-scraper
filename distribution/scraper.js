@@ -117,11 +117,13 @@ class Scraper {
             });
             _this.status.search.instances.completed += 1;
             _this.stack[browserIndex].errors = 0;
+            _this.options.logUpdateSearchProgress(_extends({}, _this.status, { hasError }));
           } catch (error) {
             hasError = true;
             _this.options.logError({ error });
             _this.filters[filterIndex].scraped = false;
             _this.stack[browserIndex].errors += 1;
+            _this.options.logUpdateSearchProgress(_extends({}, _this.status, { hasError }));
 
             yield new Promise(function (resolve) {
               setTimeout(function () {
@@ -135,7 +137,6 @@ class Scraper {
               };
             }
           }
-          _this.options.logUpdateSearchProgress(_extends({}, _this.status, { hasError }));
         }
       });
 

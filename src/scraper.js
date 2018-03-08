@@ -157,11 +157,13 @@ class Scraper {
         });
         this.status.search.instances.completed += 1;
         this.stack[browserIndex].errors = 0;
+        this.options.logUpdateSearchProgress({ ...this.status, hasError });
       } catch (error) {
         hasError = true;
         this.options.logError({ error });
         this.filters[filterIndex].scraped = false;
         this.stack[browserIndex].errors += 1;
+        this.options.logUpdateSearchProgress({ ...this.status, hasError });
 
         await new Promise((resolve) => {
           setTimeout(() => {
@@ -175,7 +177,6 @@ class Scraper {
           };
         }
       }
-      this.options.logUpdateSearchProgress({ ...this.status, hasError });
     }
   };
 
