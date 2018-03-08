@@ -134,7 +134,7 @@ class Scraper {
 
   getProceduresFromSearch = async ({ browser, browserIndex }) => {
     while (this.filters.findIndex(({ scraped }) => !scraped) !== -1) {
-      let hasError = false;
+      const hasError = false;
       const filterIndex = this.filters.findIndex(({ scraped }) => !scraped);
       this.filters[filterIndex].scraped = true;
       try {
@@ -159,11 +159,10 @@ class Scraper {
         this.stack[browserIndex].errors = 0;
         this.options.logUpdateSearchProgress({ ...this.status, hasError });
       } catch (error) {
-        hasError = true;
         this.options.logError({ error });
         this.filters[filterIndex].scraped = false;
         this.stack[browserIndex].errors += 1;
-        this.options.logUpdateSearchProgress({ ...this.status, hasError });
+        this.options.logUpdateSearchProgress({ ...this.status, hasError: true });
 
         await new Promise((resolve) => {
           setTimeout(() => {
@@ -182,13 +181,13 @@ class Scraper {
 
   async startAnalyse(browserIndex) {
     while (this.procedures.findIndex(({ scraped }) => !scraped) !== -1) {
-      let hasError = false;
+      const hasError = false;
       if (!this.stack[browserIndex].browser) {
         this.options.logUpdateDataProgress({
           value: this.completedLinks,
           retries: this.retries,
           browsers: this.stack,
-          hasError,
+          hasError: true,
         });
         await new Promise((resolve) => {
           setTimeout(() => {
@@ -225,7 +224,6 @@ class Scraper {
           });
         })
         .catch(async (error) => {
-          hasError = true;
           this.options.logError({ error });
           this.procedures[linkIndex].scraped = false;
           this.stack[browserIndex].used = false;
@@ -234,7 +232,7 @@ class Scraper {
             value: this.completedLinks,
             retries: this.retries,
             browsers: this.stack,
-            hasError,
+            hasError: true,
           });
 
           await new Promise((resolve) => {

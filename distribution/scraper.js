@@ -92,7 +92,7 @@ class Scraper {
         while (_this.filters.findIndex(function ({ scraped }) {
           return !scraped;
         }) !== -1) {
-          let hasError = false;
+          const hasError = false;
           const filterIndex = _this.filters.findIndex(function ({ scraped }) {
             return !scraped;
           });
@@ -119,11 +119,10 @@ class Scraper {
             _this.stack[browserIndex].errors = 0;
             _this.options.logUpdateSearchProgress(_extends({}, _this.status, { hasError }));
           } catch (error) {
-            hasError = true;
             _this.options.logError({ error });
             _this.filters[filterIndex].scraped = false;
             _this.stack[browserIndex].errors += 1;
-            _this.options.logUpdateSearchProgress(_extends({}, _this.status, { hasError }));
+            _this.options.logUpdateSearchProgress(_extends({}, _this.status, { hasError: true }));
 
             yield new Promise(function (resolve) {
               setTimeout(function () {
@@ -424,13 +423,13 @@ class Scraper {
       while (_this3.procedures.findIndex(function ({ scraped }) {
         return !scraped;
       }) !== -1) {
-        let hasError = false;
+        const hasError = false;
         if (!_this3.stack[browserIndex].browser) {
           _this3.options.logUpdateDataProgress({
             value: _this3.completedLinks,
             retries: _this3.retries,
             browsers: _this3.stack,
-            hasError
+            hasError: true
           });
           yield new Promise(function (resolve) {
             setTimeout(function () {
@@ -478,7 +477,6 @@ class Scraper {
           });
         })).catch((() => {
           var _ref15 = _asyncToGenerator(function* (error) {
-            hasError = true;
             _this3.options.logError({ error });
             _this3.procedures[linkIndex].scraped = false;
             _this3.stack[browserIndex].used = false;
@@ -487,7 +485,7 @@ class Scraper {
               value: _this3.completedLinks,
               retries: _this3.retries,
               browsers: _this3.stack,
-              hasError
+              hasError: true
             });
 
             yield new Promise(function (resolve) {
