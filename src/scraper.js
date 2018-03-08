@@ -189,52 +189,52 @@ class Scraper {
           .catch(async (error) => {
             this.options.logError({ error });
           });
-      }
-      // process.stdout.write('.');
-      const linkIndex = this.procedures.findIndex(({ scraped }) => !scraped);
+      } else {
+        const linkIndex = this.procedures.findIndex(({ scraped }) => !scraped);
 
-      this.stack[browserIndex].used = true;
-      this.procedures[linkIndex].scraped = true;
-      await this.saveJson({
-        link: this.procedures[linkIndex].url,
-        dipBrowser: this.stack[browserIndex].browser,
-      })
-        .then(async () => {
-          this.completedLinks += 1;
-          this.stack[browserIndex].used = false;
-          this.stack[browserIndex].scraped += 1;
-          this.stack[browserIndex].errors = 0;
-          this.options.logUpdateDataProgress({
-            value: this.completedLinks,
-            retries: this.retries,
-            browsers: this.stack,
-            hasError,
-          });
+        this.stack[browserIndex].used = true;
+        this.procedures[linkIndex].scraped = true;
+        await this.saveJson({
+          link: this.procedures[linkIndex].url,
+          dipBrowser: this.stack[browserIndex].browser,
         })
-        .catch(async (error) => {
-          this.options.logError({ error });
-          this.procedures[linkIndex].scraped = false;
-          this.stack[browserIndex].used = false;
-          this.stack[browserIndex].errors += 1;
-          this.options.logUpdateDataProgress({
-            value: this.completedLinks,
-            retries: this.retries,
-            browsers: this.stack,
-            hasError: true,
+          .then(async () => {
+            this.completedLinks += 1;
+            this.stack[browserIndex].used = false;
+            this.stack[browserIndex].scraped += 1;
+            this.stack[browserIndex].errors = 0;
+            this.options.logUpdateDataProgress({
+              value: this.completedLinks,
+              retries: this.retries,
+              browsers: this.stack,
+              hasError,
+            });
+          })
+          .catch(async (error) => {
+            this.options.logError({ error });
+            this.procedures[linkIndex].scraped = false;
+            this.stack[browserIndex].used = false;
+            this.stack[browserIndex].errors += 1;
+            this.options.logUpdateDataProgress({
+              value: this.completedLinks,
+              retries: this.retries,
+              browsers: this.stack,
+              hasError: true,
+            });
+
+            await this.timeout();
+
+            if (this.stack[browserIndex].errors >= 5) {
+              await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
+                .then(async (newBrowser) => {
+                  this.stack[browserIndex] = newBrowser;
+                })
+                .catch(async (error2) => {
+                  this.options.logError({ error2 });
+                });
+            }
           });
-
-          await this.timeout();
-
-          if (this.stack[browserIndex].errors >= 5) {
-            await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
-              .then(async (newBrowser) => {
-                this.stack[browserIndex] = newBrowser;
-              })
-              .catch(async (error2) => {
-                this.options.logError({ error2 });
-              });
-          }
-        });
+      }
     }
   }
 

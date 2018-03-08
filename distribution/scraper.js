@@ -445,68 +445,68 @@ class Scraper {
               return _ref14.apply(this, arguments);
             };
           })());
-        }
-        // process.stdout.write('.');
-        const linkIndex = _this3.procedures.findIndex(function ({ scraped }) {
-          return !scraped;
-        });
-
-        _this3.stack[browserIndex].used = true;
-        _this3.procedures[linkIndex].scraped = true;
-        yield _this3.saveJson({
-          link: _this3.procedures[linkIndex].url,
-          dipBrowser: _this3.stack[browserIndex].browser
-        }).then(_asyncToGenerator(function* () {
-          _this3.completedLinks += 1;
-          _this3.stack[browserIndex].used = false;
-          _this3.stack[browserIndex].scraped += 1;
-          _this3.stack[browserIndex].errors = 0;
-          _this3.options.logUpdateDataProgress({
-            value: _this3.completedLinks,
-            retries: _this3.retries,
-            browsers: _this3.stack,
-            hasError
+        } else {
+          const linkIndex = _this3.procedures.findIndex(function ({ scraped }) {
+            return !scraped;
           });
-        })).catch((() => {
-          var _ref16 = _asyncToGenerator(function* (error) {
-            _this3.options.logError({ error });
-            _this3.procedures[linkIndex].scraped = false;
+
+          _this3.stack[browserIndex].used = true;
+          _this3.procedures[linkIndex].scraped = true;
+          yield _this3.saveJson({
+            link: _this3.procedures[linkIndex].url,
+            dipBrowser: _this3.stack[browserIndex].browser
+          }).then(_asyncToGenerator(function* () {
+            _this3.completedLinks += 1;
             _this3.stack[browserIndex].used = false;
-            _this3.stack[browserIndex].errors += 1;
+            _this3.stack[browserIndex].scraped += 1;
+            _this3.stack[browserIndex].errors = 0;
             _this3.options.logUpdateDataProgress({
               value: _this3.completedLinks,
               retries: _this3.retries,
               browsers: _this3.stack,
-              hasError: true
+              hasError
+            });
+          })).catch((() => {
+            var _ref16 = _asyncToGenerator(function* (error) {
+              _this3.options.logError({ error });
+              _this3.procedures[linkIndex].scraped = false;
+              _this3.stack[browserIndex].used = false;
+              _this3.stack[browserIndex].errors += 1;
+              _this3.options.logUpdateDataProgress({
+                value: _this3.completedLinks,
+                retries: _this3.retries,
+                browsers: _this3.stack,
+                hasError: true
+              });
+
+              yield _this3.timeout();
+
+              if (_this3.stack[browserIndex].errors >= 5) {
+                yield _this3.createNewBrowser({ browserObject: _this3.stack[browserIndex] }).then((() => {
+                  var _ref17 = _asyncToGenerator(function* (newBrowser) {
+                    _this3.stack[browserIndex] = newBrowser;
+                  });
+
+                  return function (_x11) {
+                    return _ref17.apply(this, arguments);
+                  };
+                })()).catch((() => {
+                  var _ref18 = _asyncToGenerator(function* (error2) {
+                    _this3.options.logError({ error2 });
+                  });
+
+                  return function (_x12) {
+                    return _ref18.apply(this, arguments);
+                  };
+                })());
+              }
             });
 
-            yield _this3.timeout();
-
-            if (_this3.stack[browserIndex].errors >= 5) {
-              yield _this3.createNewBrowser({ browserObject: _this3.stack[browserIndex] }).then((() => {
-                var _ref17 = _asyncToGenerator(function* (newBrowser) {
-                  _this3.stack[browserIndex] = newBrowser;
-                });
-
-                return function (_x11) {
-                  return _ref17.apply(this, arguments);
-                };
-              })()).catch((() => {
-                var _ref18 = _asyncToGenerator(function* (error2) {
-                  _this3.options.logError({ error2 });
-                });
-
-                return function (_x12) {
-                  return _ref18.apply(this, arguments);
-                };
-              })());
-            }
-          });
-
-          return function (_x10) {
-            return _ref16.apply(this, arguments);
-          };
-        })());
+            return function (_x10) {
+              return _ref16.apply(this, arguments);
+            };
+          })());
+        }
       }
     })();
   }
