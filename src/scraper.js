@@ -72,9 +72,7 @@ class Scraper {
         stackCreated = true;
       } catch (error) {
         console.log('bundestag down (stack)');
-        await new Promise(resolve => setTimeout(() => {
-          resolve();
-        }, 3000));
+        await this.timeout();
       }
     }
     let hasData = false;
@@ -84,9 +82,7 @@ class Scraper {
         hasData = true;
       } catch (error) {
         console.log('bundestag down (search)');
-        await new Promise(resolve => setTimeout(() => {
-          resolve();
-        }, 3000));
+        await this.timeout();
       }
     }
     const filtersSelected = await this.configureFilter(this.availableFilters);
@@ -164,11 +160,7 @@ class Scraper {
         this.stack[browserIndex].errors += 1;
         this.options.logUpdateSearchProgress({ ...this.status, hasError: true });
 
-        await new Promise((resolve) => {
-          setTimeout(() => {
-            resolve();
-          }, 3000);
-        });
+        await this.timeout();
         if (this.stack[browserIndex].errors > 5) {
           throw {
             message: 'to many search errors',
@@ -189,11 +181,7 @@ class Scraper {
           browsers: this.stack,
           hasError: true,
         });
-        await new Promise((resolve) => {
-          setTimeout(() => {
-            resolve();
-          }, 3000);
-        });
+        await this.timeout();
         await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
           .then(async (newBrowser) => {
             this.stack[browserIndex] = newBrowser;
@@ -235,11 +223,7 @@ class Scraper {
             hasError: true,
           });
 
-          await new Promise((resolve) => {
-            setTimeout(() => {
-              resolve();
-            }, 3000);
-          });
+          await this.timeout();
 
           if (this.stack[browserIndex].errors >= 5) {
             await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
@@ -484,6 +468,12 @@ class Scraper {
     const xmlString = html.match(xmlRegex)[0];
     return x2j.xml2js(xmlString);
   }
+
+  timeout = async () => new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, _.random(1000, 5000));
+  })
 }
 
 module.exports = Scraper;

@@ -124,11 +124,7 @@ class Scraper {
             _this.stack[browserIndex].errors += 1;
             _this.options.logUpdateSearchProgress(_extends({}, _this.status, { hasError: true }));
 
-            yield new Promise(function (resolve) {
-              setTimeout(function () {
-                resolve();
-              }, 3000);
-            });
+            yield _this.timeout();
             if (_this.stack[browserIndex].errors > 5) {
               throw {
                 message: 'to many search errors',
@@ -342,6 +338,14 @@ class Scraper {
         return _ref9.apply(this, arguments);
       };
     })();
+
+    this.timeout = _asyncToGenerator(function* () {
+      return new Promise(function (resolve) {
+        setTimeout(function () {
+          resolve();
+        }, _.random(1000, 5000));
+      });
+    });
   }
 
   scrape(options) {
@@ -360,11 +364,7 @@ class Scraper {
           stackCreated = true;
         } catch (error) {
           console.log('bundestag down (stack)');
-          yield new Promise(function (resolve) {
-            return setTimeout(function () {
-              resolve();
-            }, 3000);
-          });
+          yield _this2.timeout();
         }
       }
       let hasData = false;
@@ -374,11 +374,7 @@ class Scraper {
           hasData = true;
         } catch (error) {
           console.log('bundestag down (search)');
-          yield new Promise(function (resolve) {
-            return setTimeout(function () {
-              resolve();
-            }, 3000);
-          });
+          yield _this2.timeout();
         }
       }
       const filtersSelected = yield _this2.configureFilter(_this2.availableFilters);
@@ -395,12 +391,12 @@ class Scraper {
       _this2.options.logStopSearchProgress();
 
       yield Promise.all(_this2.stack.map((() => {
-        var _ref10 = _asyncToGenerator(function* (browser, browserIndex) {
+        var _ref11 = _asyncToGenerator(function* (browser, browserIndex) {
           yield _this2.startAnalyse(browserIndex);
         });
 
         return function (_x6, _x7) {
-          return _ref10.apply(this, arguments);
+          return _ref11.apply(this, arguments);
         };
       })())).then(_asyncToGenerator(function* () {
         _this2.options.logUpdateDataProgress({
@@ -431,26 +427,22 @@ class Scraper {
             browsers: _this3.stack,
             hasError: true
           });
-          yield new Promise(function (resolve) {
-            setTimeout(function () {
-              resolve();
-            }, 3000);
-          });
+          yield _this3.timeout();
           yield _this3.createNewBrowser({ browserObject: _this3.stack[browserIndex] }).then((() => {
-            var _ref12 = _asyncToGenerator(function* (newBrowser) {
+            var _ref13 = _asyncToGenerator(function* (newBrowser) {
               _this3.stack[browserIndex] = newBrowser;
             });
 
             return function (_x8) {
-              return _ref12.apply(this, arguments);
+              return _ref13.apply(this, arguments);
             };
           })()).catch((() => {
-            var _ref13 = _asyncToGenerator(function* (error) {
+            var _ref14 = _asyncToGenerator(function* (error) {
               _this3.options.logError({ error });
             });
 
             return function (_x9) {
-              return _ref13.apply(this, arguments);
+              return _ref14.apply(this, arguments);
             };
           })());
         }
@@ -476,7 +468,7 @@ class Scraper {
             hasError
           });
         })).catch((() => {
-          var _ref15 = _asyncToGenerator(function* (error) {
+          var _ref16 = _asyncToGenerator(function* (error) {
             _this3.options.logError({ error });
             _this3.procedures[linkIndex].scraped = false;
             _this3.stack[browserIndex].used = false;
@@ -488,35 +480,31 @@ class Scraper {
               hasError: true
             });
 
-            yield new Promise(function (resolve) {
-              setTimeout(function () {
-                resolve();
-              }, 3000);
-            });
+            yield _this3.timeout();
 
             if (_this3.stack[browserIndex].errors >= 5) {
               yield _this3.createNewBrowser({ browserObject: _this3.stack[browserIndex] }).then((() => {
-                var _ref16 = _asyncToGenerator(function* (newBrowser) {
+                var _ref17 = _asyncToGenerator(function* (newBrowser) {
                   _this3.stack[browserIndex] = newBrowser;
                 });
 
                 return function (_x11) {
-                  return _ref16.apply(this, arguments);
+                  return _ref17.apply(this, arguments);
                 };
               })()).catch((() => {
-                var _ref17 = _asyncToGenerator(function* (error2) {
+                var _ref18 = _asyncToGenerator(function* (error2) {
                   _this3.options.logError({ error2 });
                 });
 
                 return function (_x12) {
-                  return _ref17.apply(this, arguments);
+                  return _ref18.apply(this, arguments);
                 };
               })());
             }
           });
 
           return function (_x10) {
-            return _ref15.apply(this, arguments);
+            return _ref16.apply(this, arguments);
           };
         })());
       }
@@ -607,6 +595,7 @@ class Scraper {
       return x2j.xml2js(xmlString);
     })();
   }
+
 }
 
 module.exports = Scraper;
