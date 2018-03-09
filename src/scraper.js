@@ -130,7 +130,7 @@ class Scraper {
 
   getProceduresFromSearch = async ({ browser, browserIndex }) => {
     while (this.filters.findIndex(({ scraped }) => !scraped) !== -1) {
-      const hasError = false;
+      let hasError = false;
       const filterIndex = this.filters.findIndex(({ scraped }) => !scraped);
       this.filters[filterIndex].scraped = true;
       try {
@@ -155,10 +155,11 @@ class Scraper {
         this.stack[browserIndex].errors = 0;
         this.options.logUpdateSearchProgress({ ...this.status, hasError });
       } catch (error) {
+        hasError = true;
         this.options.logError({ error });
         this.filters[filterIndex].scraped = false;
         this.stack[browserIndex].errors += 1;
-        this.options.logUpdateSearchProgress({ ...this.status, hasError: true });
+        this.options.logUpdateSearchProgress({ ...this.status, hasError });
 
         await this.timeout();
         if (this.stack[browserIndex].errors > 5) {
@@ -173,13 +174,14 @@ class Scraper {
 
   async startAnalyse(browserIndex) {
     while (this.procedures.findIndex(({ scraped }) => !scraped) !== -1) {
-      const hasError = false;
+      let hasError = false;
       if (!this.stack[browserIndex].browser) {
+        hasError = true;
         this.options.logUpdateDataProgress({
           value: this.completedLinks,
           retries: this.retries,
           browsers: this.stack,
-          hasError: true,
+          hasError,
         });
         await this.timeout();
         await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
@@ -215,11 +217,12 @@ class Scraper {
             this.procedures[linkIndex].scraped = false;
             this.stack[browserIndex].used = false;
             this.stack[browserIndex].errors += 1;
+            hasError = true;
             this.options.logUpdateDataProgress({
               value: this.completedLinks,
               retries: this.retries,
               browsers: this.stack,
-              hasError: true,
+              hasError,
             });
 
             await this.timeout();
