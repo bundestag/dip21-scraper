@@ -92,7 +92,7 @@ class Scraper {
         while (_this.filters.findIndex(function ({ scraped }) {
           return !scraped;
         }) !== -1) {
-          const hasError = false;
+          let hasError = false;
           const filterIndex = _this.filters.findIndex(function ({ scraped }) {
             return !scraped;
           });
@@ -119,10 +119,11 @@ class Scraper {
             _this.stack[browserIndex].errors = 0;
             _this.options.logUpdateSearchProgress(_extends({}, _this.status, { hasError }));
           } catch (error) {
+            hasError = true;
             _this.options.logError({ error });
             _this.filters[filterIndex].scraped = false;
             _this.stack[browserIndex].errors += 1;
-            _this.options.logUpdateSearchProgress(_extends({}, _this.status, { hasError: true }));
+            _this.options.logUpdateSearchProgress(_extends({}, _this.status, { hasError }));
 
             yield _this.timeout();
             if (_this.stack[browserIndex].errors > 5) {
@@ -419,13 +420,14 @@ class Scraper {
       while (_this3.procedures.findIndex(function ({ scraped }) {
         return !scraped;
       }) !== -1) {
-        const hasError = false;
+        let hasError = false;
         if (!_this3.stack[browserIndex].browser) {
+          hasError = true;
           _this3.options.logUpdateDataProgress({
             value: _this3.completedLinks,
             retries: _this3.retries,
             browsers: _this3.stack,
-            hasError: true
+            hasError
           });
           yield _this3.timeout();
           yield _this3.createNewBrowser({ browserObject: _this3.stack[browserIndex] }).then((() => {
@@ -472,11 +474,12 @@ class Scraper {
               _this3.procedures[linkIndex].scraped = false;
               _this3.stack[browserIndex].used = false;
               _this3.stack[browserIndex].errors += 1;
+              hasError = true;
               _this3.options.logUpdateDataProgress({
                 value: _this3.completedLinks,
                 retries: _this3.retries,
                 browsers: _this3.stack,
-                hasError: true
+                hasError
               });
 
               yield _this3.timeout();
