@@ -128,7 +128,7 @@ class DipBrowser {
   getEntries = ({ body }) => {
     const table = body.match(/<table summary="Ergebnisliste">(.|[\r\n])*?<\/table>/);
 
-    const re = /<a.*?class="linkIntern".*?href="(.*?)">.*?<\/a>.*?<\/td><td>([0-9]*.[0-9]*.[0-9]*)<\/td>/g;
+    const re = /<a.*?class="linkIntern".*?href="(.*?)">(?:.|\s)*?<\/a>(?:.|\s)*?<\/td><td>([0-9]*.[0-9]*.[0-9]*)<\/td>/g;
     let m;
     const data = [];
     do {
