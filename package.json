@@ -1,6 +1,6 @@
 {
   "name": "@democracy-deutschland/dip21-scraper",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "scraper for the german \"Bundestag\"",
   "main": "distribution/scraper.js",
   "author": "Manuel Ruck",
@@ -48,7 +48,11 @@
     "type": "git",
     "url": "git+https://github.com/demokratie-live/dip21-scraper.git"
   },
-  "keywords": ["scraper", "bundestag", "law"],
+  "keywords": [
+    "scraper",
+    "bundestag",
+    "law"
+  ],
   "bugs": {
     "url": "https://github.com/demokratie-live/dip21-scraper/issues"
   },
