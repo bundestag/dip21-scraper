@@ -1,321 +1,482 @@
-const puppeteer = require("puppeteer");
-const X2JS = require("x2js");
-const jsonfile = require("jsonfile");
-var _progress = require("cli-progress");
-const fs = require("fs-extra");
-const Url = require("url");
-const Querystring = require("querystring");
+/* eslint-disable max-len */
+/* eslint-disable no-throw-literal */
+
+import DipBrowser from './DipBrowser';
+
+const X2JS = require('x2js');
+const Url = require('url');
+const Querystring = require('querystring');
+const _ = require('lodash');
 
 const x2j = new X2JS();
 
-const URLS = {
-  basisInfos:
-    "https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail.do",
-  processRunning:
-    "https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail_vp.do"
-};
+process.setMaxListeners(Infinity);
 
 class Scraper {
-  async init() {
-    this.browser = await puppeteer.launch();
-    this.page = await this.browser.newPage();
+  options = {
+    selectPeriods: false,
+    selectOperationTypes: false,
+    logStartSearchProgress: () => { },
+    logUpdateSearchProgress: () => { },
+    logStopSearchProgress: () => { },
+    logStartDataProgress: () => { },
+    logUpdateDataProgress: () => { },
+    logStopDataProgress: () => { },
+    logFinished: () => { },
+    logError: () => { },
+    outScraperData: () => { },
+    doScrape: () => true,
+    browserStackSize: 1,
+    resultsPerPage: 200,
+  };
 
-    await this.page.setRequestInterception(true);
-    this.page.on("request", request => {
-      switch (request.resourceType()) {
-        case "image":
-        case "script":
-        case "stylesheet":
-          request.abort();
-          break;
+  urls = {
+    basisInfos: 'https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail.do',
+    processRunning:
+      'https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail_vp.do?vorgangId=',
+    start: 'https://dipbt.bundestag.de/dip21.web/bt',
+    search: 'https://dipbt.bundestag.de/dip21.web/searchProcedures.do;jsessionid=',
+  };
 
-        default:
-          request.continue();
-          break;
-      }
-    });
-  }
-
-  createBrowserStack(number) {
-    return [...Array(number)].map(async () => {
-      const browser = await puppeteer.launch();
-      const page = await browser.newPage();
-      try {
-        await page.setRequestInterception(true);
-        page.on("request", request => {
-          switch (request.resourceType()) {
-            case "image":
-            case "script":
-            case "stylesheet":
-              request.abort();
-              break;
-
-            default:
-              request.continue();
-              break;
-          }
-        });
-        await page.goto("https://dipbt.bundestag.de/dip21.web/bt", {
-          timeout: 60000
-        });
-      } catch (error) {
-        return new Promise(resolve => resolve());
-      }
-      return {
-        browser,
-        page,
-        used: false,
-        errorCount: 0
-      };
-    });
-  }
-
-  async createNewBrowser(browserObject) {
-    // console.log("### create new Browser");
-    if (browserObject.browser) {
-      await browserObject.browser.close();
-    }
-    try {
-      let browser = await puppeteer.launch();
-      let page = await browser.newPage();
-      await page.setRequestInterception(true);
-      page.on("request", request => {
-        switch (request.resourceType()) {
-          case "image":
-          case "script":
-          case "stylesheet":
-            request.abort();
-            break;
-
-          default:
-            request.continue();
-            break;
-        }
-      });
-      await page.goto("https://dipbt.bundestag.de/dip21.web/bt", {
-        timeout: 10000
-      });
-      // console.log("new Browser created!");
-      return {
-        browser,
-        page,
-        used: false,
-        errorCount: 0
-      };
-    } catch (error) {
-      // console.log("### new Browser failed", error);
-      return await this.createNewBrowser(browserObject);
-    }
-  }
-
-  async start() {
-    await this.page.goto("https://dipbt.bundestag.de/dip21.web/bt");
-  }
-
-  async goToSearch() {
-    await this.clickWait(
-      "#navigationMenu > ul > li:nth-child(4) > ul > li:nth-child(1) > div > a"
-    );
-  }
-
-  async takePeriods() {
-    await this.page.waitForSelector("input#btnSuche", { timeout: 5000 });
-    const selectField = await this.page.evaluate(sel => {
-      return document.querySelector(sel).outerHTML;
-    }, "#wahlperiode");
-    const values = x2j
-      .xml2js(selectField)
-      .select.option.map(o => ({ value: o._value, name: o.__text }));
-    return values;
-  }
-
-  async selectPeriod(period) {
-    await Promise.all([
-      this.page.waitForNavigation({ waitUntil: ["domcontentloaded"] }),
-      this.page.select("select#wahlperiode", period)
-    ]);
-  }
-
-  async takeOperationTypes() {
-    const selectField = await this.page.evaluate(sel => {
-      return document.querySelector(sel).outerHTML;
-    }, "#includeVorgangstyp");
-    const values = x2j
-      .xml2js(selectField)
-      .select.option.map(o => ({ value: o._value, name: o.__text }));
-    return values;
-  }
-
-  async selectOperationTypes(operationTypes) {
-    await this.page.select("select#includeVorgangstyp", ...operationTypes);
-  }
-
-  async search() {
-    await this.clickWait("input#btnSuche");
-    return this.getResultInfos();
-  }
-
-  async getResultInfos() {
-    const reg = /Seite (\d*) von (\d*) \(Treffer (\d*) bis (\d*) von (\d*)\)/;
-    this.page.waitForSelector("#inhaltsbereich");
-    const resultsNumberString = await this.page.evaluate(sel => {
-      return document.querySelector(sel).outerHTML;
-    }, "#inhaltsbereich");
-    const paginator = resultsNumberString.match(reg);
-    return {
-      pageCurrent: paginator[1],
-      pageSum: paginator[2],
-      entriesFrom: paginator[3],
-      entriesTo: paginator[4],
-      entriesSum: paginator[5]
-    };
-  }
-
-  async getEntriesFromSearch() {
-    let links = [];
-    const resultInfos = await this.getResultInfos();
-    console.log("Eintragslinks sammeln");
-    var bar1 = new _progress.Bar(
-      {
-        format:
-          "[{bar}] {percentage}% | ETA: {eta_formatted} | duration: {duration_formatted} | {value}/{total}"
+  stack = [];
+  availableFilters = {
+    periods: [],
+    operationTypes: [],
+  };
+  filters = [];
+  procedures = [];
+  status = {
+    search: {
+      instances: {
+        sum: 0,
+        completed: 0,
       },
-      _progress.Presets.shades_classic
-    );
-    bar1.start(resultInfos.pageSum, resultInfos.pageCurrent);
-    for (let i = resultInfos.pageCurrent; i <= resultInfos.pageSum; i++) {
-      let pageLinks = await this.getEntriesFromPage();
-      links = links.concat(pageLinks);
-      let curResultInfos = await this.getResultInfos();
-      bar1.update(curResultInfos.pageCurrent);
-      if (curResultInfos.pageCurrent !== curResultInfos.pageSum) {
-        await this.clickWait(
-          "#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.blaetterNavigationLeiste > div.navigationListeNachRechts > input"
-        );
-      } else {
-        bar1.stop();
+      pages: {
+        sum: 0,
+        completed: 0,
+      },
+    },
+  };
+  browser;
+
+  async scrape(options) {
+    this.options = { ...this.options, ...options };
+    const { browserStackSize } = this.options;
+
+    let stackCreated = false;
+    while (!stackCreated) {
+      try {
+        this.stack = await Promise.all(this.createBrowserStack({
+          size: browserStackSize,
+        }));
+        stackCreated = true;
+      } catch (error) {
+        console.log('bundestag down (stack)');
+        await this.timeout();
       }
     }
-    return links;
+    let hasData = false;
+    while (!hasData) {
+      try {
+        this.availableFilters = await this.takeSearchableValues();
+        hasData = true;
+      } catch (error) {
+        console.log('bundestag down (search)');
+        await this.timeout();
+      }
+    }
+    const filtersSelected = await this.configureFilter(this.availableFilters);
+
+    this.options.logStartSearchProgress(this.status);
+    await this.collectProcedures(filtersSelected);
+
+    // Data
+    this.completedLinks = 0;
+    await this.options.logStartDataProgress({
+      sum: this.procedures.length,
+      retries: this.retries,
+    });
+    this.options.logStopSearchProgress();
+
+    await Promise.all(this.stack.map(async (browser, browserIndex) => {
+      await this.startAnalyse(browserIndex);
+    })).then(async () => {
+      this.options.logUpdateDataProgress({
+        value: this.completedLinks,
+        retries: this.retries,
+        browsers: this.stack,
+      });
+      // Finalize
+      this.options.logStopDataProgress();
+      await this.finalize();
+      this.options.logFinished();
+    });
   }
 
-  async getEntriesFromPage() {
-    return await this.page.$$eval(
-      "#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody a.linkIntern",
-      els => els.map(el => ({ url: el.href, scraped: false }))
-    );
+  collectProcedures = async ({ periods, operationTypes }) => {
+    periods.forEach((period) => {
+      this.filters = [
+        ...this.filters,
+        ...operationTypes.map(operationType => ({ period, operationType, scraped: false })),
+      ];
+    });
+
+    this.status.search.instances.sum = this.filters.length;
+
+    await Promise.all(this.stack.map((browser, browserIndex) =>
+      this.getProceduresFromSearch({ browser, browserIndex })));
+    this.procedures = _.uniqBy(this.procedures, 'id');
+  };
+
+  getProceduresFromSearch = async ({ browser, browserIndex }) => {
+    while (this.filters.findIndex(({ scraped }) => !scraped) !== -1) {
+      let hasError = false;
+      const filterIndex = this.filters.findIndex(({ scraped }) => !scraped);
+      this.filters[filterIndex].scraped = true;
+      try {
+        const searchBody = await browser.browser.getBeratungsablaeufeSearchPage();
+        const {
+          formData,
+          formMethod,
+          formAction,
+        } = await browser.browser.getBeratungsablaeufeSearchFormData({ body: searchBody });
+        formData.wahlperiode = this.filters[filterIndex].period;
+        formData.vorgangstyp = this.filters[filterIndex].operationType;
+        formData.method = 'Suchen';
+        formData.anzahlTreffer = this.options.resultsPerPage;
+
+        await this.startSearch({
+          browser,
+          formData,
+          formMethod,
+          formAction,
+        });
+        this.status.search.instances.completed += 1;
+        this.stack[browserIndex].errors = 0;
+        this.options.logUpdateSearchProgress({ ...this.status, hasError });
+      } catch (error) {
+        hasError = true;
+        this.options.logError({ error });
+        this.filters[filterIndex].scraped = false;
+        this.stack[browserIndex].errors += 1;
+        this.options.logUpdateSearchProgress({ ...this.status, hasError });
+
+        await this.timeout();
+        if (this.stack[browserIndex].errors > 5) {
+          throw {
+            message: 'to many search errors',
+            code: 1015,
+          };
+        }
+      }
+    }
+  };
+
+  async startAnalyse(browserIndex) {
+    while (this.procedures.findIndex(({ scraped }) => !scraped) !== -1) {
+      let hasError = false;
+      if (!this.stack[browserIndex].browser) {
+        hasError = true;
+        this.options.logUpdateDataProgress({
+          value: this.completedLinks,
+          retries: this.retries,
+          browsers: this.stack,
+          hasError,
+        });
+        await this.timeout();
+        await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
+          .then(async (newBrowser) => {
+            this.stack[browserIndex] = newBrowser;
+          })
+          .catch(async (error) => {
+            this.options.logError({ error });
+          });
+      } else {
+        const linkIndex = this.procedures.findIndex(({ scraped }) => !scraped);
+
+        this.stack[browserIndex].used = true;
+        this.procedures[linkIndex].scraped = true;
+        await this.saveJson({
+          link: this.procedures[linkIndex].url,
+          dipBrowser: this.stack[browserIndex].browser,
+        })
+          .then(async () => {
+            this.completedLinks += 1;
+            this.stack[browserIndex].used = false;
+            this.stack[browserIndex].scraped += 1;
+            this.stack[browserIndex].errors = 0;
+            this.options.logUpdateDataProgress({
+              value: this.completedLinks,
+              retries: this.retries,
+              browsers: this.stack,
+              hasError,
+            });
+          })
+          .catch(async (error) => {
+            this.options.logError({ error });
+            this.procedures[linkIndex].scraped = false;
+            this.stack[browserIndex].used = false;
+            this.stack[browserIndex].errors += 1;
+            hasError = true;
+            this.options.logUpdateDataProgress({
+              value: this.completedLinks,
+              retries: this.retries,
+              browsers: this.stack,
+              hasError,
+            });
+
+            await this.timeout();
+
+            if (this.stack[browserIndex].errors >= 5) {
+              await this.createNewBrowser({ browserObject: this.stack[browserIndex] })
+                .then(async (newBrowser) => {
+                  this.stack[browserIndex] = newBrowser;
+                })
+                .catch(async (error2) => {
+                  this.options.logError({ error2 });
+                });
+            }
+          });
+      }
+    }
   }
 
-  async selectFirstEntry() {
+  finalize = async () => {
+    this.stack = [];
+    this.availableFilters = {
+      periods: [],
+      operationTypes: [],
+    };
+    this.filters = [];
+    this.procedures = [];
+    this.status = {
+      search: {
+        instances: {
+          sum: 0,
+          completed: 0,
+        },
+        pages: {
+          sum: 0,
+          completed: 0,
+        },
+      },
+    };
+  };
+
+  createBrowserStack = ({ size }) => [...Array(size)].map(async () => this.createNewBrowser());
+
+  createNewBrowser = async ({ browserObject } = {}) => {
+    if (browserObject) {
+      delete browserObject.browser; // eslint-disable-line
+    }
+    const browser = new DipBrowser();
+    await browser.initialize();
+    return {
+      browser,
+      used: false,
+      scraped: 0,
+      errors: 0,
+    };
+  };
+
+  configureFilter = async ({ periods, operationTypes }) => {
+    // Periods
+    let selectedPeriods = [];
+    if (_.isArray(this.options.selectPeriods)) {
+      selectedPeriods = this.options.selectPeriods;
+    } else if (_.isFunction(this.options.selectPeriods)) {
+      selectedPeriods = await this.options.selectPeriods({ periods });
+    } else {
+      throw new Error(`Period must be type of "Array" or "function" witch return an array!\nYou give "${typeof this
+        .options.selectPeriods}"`);
+    }
+    if (selectedPeriods.includes('Alle') || selectedPeriods.length === 0) {
+      selectedPeriods = periods.filter(({ name }) => name !== 'Alle').map(({ name }) => name);
+    }
+
+    // OperationTypes
+    let selectedOperationTypes = [];
+    if (_.isArray(this.options.selectOperationTypes)) {
+      selectedOperationTypes = this.options.selectOperationTypes;
+    } else if (_.isFunction(this.options.selectOperationTypes)) {
+      selectedOperationTypes = await this.options.selectOperationTypes({ operationTypes });
+    } else {
+      throw new Error(`Period must be type of "Array" or "function" witch return an array!\nYou give "${typeof this
+        .options.selectOperationTypes}"`);
+    }
+    if (selectedOperationTypes.includes('Alle') || selectedOperationTypes.length === 0) {
+      selectedOperationTypes = operationTypes
+        .filter(({ name }) => name !== 'Alle')
+        .map(({ number }) => number);
+    }
+
+    return {
+      periods: selectedPeriods.map(p => periods.find(({ name }) => name === p).value),
+      operationTypes: selectedOperationTypes.map(n => operationTypes.find(({ number }) => number === n).value),
+    };
+  };
+
+  async selectPeriod({ browser, periodName }) {
+    const period = this.availableFilters.periods.find(p => p.name === periodName);
+    await Promise.all([
+      browser.page.waitForNavigation({ waitUntil: ['domcontentloaded'] }),
+      browser.page.select('select#wahlperiode', period.value),
+    ]).catch((error) => {
+      throw {
+        error,
+        function: 'selectPeriod',
+        code: 1005,
+      };
+    });
+  }
+
+  async selectOperationTypes({ browser, operationTypeNumber }) {
+    const operationType = this.availableFilters.operationTypes.find(o => o.number === operationTypeNumber);
+    if (!operationType) {
+      throw new Error(`OperationType "${operationTypeNumber}" not found`);
+    }
+    await browser.page.select('select#includeVorgangstyp', `${operationType.value}`);
+  }
+
+  getFreeBrowser = () => this.stack.find(({ used }) => !used);
+
+  takeSearchableValues = async () => {
+    const browserObj = this.getFreeBrowser();
+    browserObj.used = true;
+    const searchBody = await browserObj.browser.getBeratungsablaeufeSearchPage();
+    const searchOptions = await browserObj.browser.getBeratungsablaeufeSearchOptions({
+      body: searchBody,
+    });
+    if (searchOptions.vorgangstyp.length === 0) {
+      throw new Error();
+    }
+    browserObj.used = false;
+    return {
+      periods: searchOptions.wahlperioden,
+      operationTypes: searchOptions.vorgangstyp,
+    };
+  };
+
+  startSearch = async ({
+    browser, formData, formMethod, formAction,
+  }) => {
+    const { body: searchResultBody } = await browser.browser.getSearchResultPage({
+      formMethod,
+      formAction,
+      formData,
+    });
+
+    const resultInfos = await browser.browser.getResultInfo({ body: searchResultBody });
+
+    if (!resultInfos) {
+      return;
+    } else if (resultInfos === 'isEntry') {
+      const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
+      const vorgangId = searchResultBody.match(procedureIdRegex)[1];
+      this.procedures.push({
+        id: vorgangId.split('-')[1],
+        url: `/dip21.web/searchProcedures/simple_search_list.do?selId=${vorgangId.split('-')[1]}&method=select&offset=0&anzahl=200&sort=3&direction=desc`,
+        scraped: false,
+      });
+      return;
+    }
+
+    this.status.search.pages.sum += resultInfos.pageSum;
+    let pagesCompleted = 0;
+    let searchResultBodyToAnalyse = searchResultBody;
+    for (let i = resultInfos.pageCurrent; i <= resultInfos.pageSum; i += 1) {
+      try {
+        if (i !== 1) {
+          formData.offset = (i - 1) * this.options.resultsPerPage; // eslint-disable-line
+          const { body: tmpBody } = await browser.browser.getSearchResultPage({
+            formMethod,
+            formAction,
+            formData,
+          });
+          searchResultBodyToAnalyse = tmpBody;
+        }
+
+        let pageLinks = browser.browser.getEntries({ body: searchResultBodyToAnalyse });
+        pageLinks = pageLinks.filter(link => this.options.doScrape({ data: link }));
+        this.procedures.push(...pageLinks);
+        this.status.search.pages.completed += 1;
+        pagesCompleted += 1;
+      } catch (error) {
+        i = 1;
+        this.status.search.pages.sum -= resultInfos.pageSum;
+        this.status.search.pages.completed -= pagesCompleted;
+        throw {
+          error,
+          function: 'startSearch',
+          type: 'timeout',
+          code: 1008,
+        };
+      }
+      this.options.logUpdateSearchProgress(this.status);
+    }
+  };
+
+  async saveJson({ link, dipBrowser }) {
+    const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
+    const { body: entryBody } = await dipBrowser.request({
+      uri: link,
+    });
+
+    let procedureId;
     try {
-      const href = await this.page.$eval(
-        "#inhaltsbereich > div.inhalt > div.contentBox > fieldset:nth-child(2) > fieldset:nth-child(1) > div.tabelleGross > table > tbody > tr:nth-child(1) > td:nth-child(3) > a",
-        el => el.href
-      );
-      await this.page.goto(href, { waitUntil: "domcontentloaded" });
-    } catch (error) {}
-  }
-
-  async goToNextEntry() {
-    await this.clickWait(
-      "#inhaltsbereich > div.inhalt > div.contentBox > fieldset > fieldset > div > fieldset > div > div.navigationListeNachRechts > input"
-    );
-  }
-
-  async saveJson(link, page) {
-    // let page = this.page;
-
-    var processId = /\[ID:&nbsp;(.*?)\]/;
-    var xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
-    await page.goto(link);
-
-    let content = await page.evaluate(sel => {
-      return document.querySelector(sel).innerHTML;
-    }, "#inhaltsbereich");
-
-    let process = content.match(processId)[1];
-
+      procedureId = entryBody.match(procedureIdRegex)[1]; // eslint-disable-line
+    } catch (error) {
+      throw {
+        error,
+        code: 1012,
+      };
+    }
     const urlObj = Url.parse(link);
     const queryObj = Querystring.parse(urlObj.query);
     const vorgangId = queryObj.selId;
+    if (procedureId.split('-')[1] !== vorgangId) {
+      const error = new Error(`Procedure ID missmatch URL: "${vorgangId}" to HTML: "${procedureId.split('-')[1]}"`);
+      throw {
+        error,
+        code: 1013,
+      };
+    }
 
-    var dataProcess = await this.getProcessData(link, page);
-    var dataProcessRunning = await this.getProcessRunningData(vorgangId, page);
-    //await this.getCoAdvisedOperationsData(vorgangId, page);
+    const dataProcedure = await this.getProcedureData({ html: entryBody });
 
-    let processData = {
-      vorgangId,
-      ...dataProcess,
-      ...dataProcessRunning
-    };
-    const directory = `files/${processData.VORGANG.WAHLPERIODE}/${
-      processData.VORGANG.VORGANGSTYP
-    }`;
-    await fs.ensureDir(directory);
-    jsonfile.writeFile(
-      `${directory}/${process}.json`,
-      processData,
-      {
-        spaces: 2,
-        EOL: "\r\n"
-      },
-      err => {}
-    );
-  }
-
-  async getProcessData(link, page) {
-    var xmlRegex = /<VORGANG>(.|\n)*?<\/VORGANG>/;
-    let html = await page.content();
-    let xmlString = html.match(xmlRegex)[0].replace("<- VORGANGSABLAUF ->", "");
-
-    return x2j.xml2js(xmlString);
-  }
-
-  async getProcessRunningData(vorgangId, page) {
-    await page.goto(`${URLS.processRunning}?vorgangId=${vorgangId}`, {});
-    var xmlRegex = /<VORGANGSABLAUF>(.|\n)*?<\/VORGANGSABLAUF>/;
-    let html = await page.content();
-    let xmlString = html.match(xmlRegex)[0];
-
-    return x2j.xml2js(xmlString);
-  }
-
-  async getCoAdvisedOperationsData(vorgangId, page) {
-    // #nocss1 > fieldset > div > ul
-    const tabLength = await this.page.evaluate(sel => {
-      return document.querySelectorAll("#nocss1 > fieldset > div > ul a")
-        .length;
+    const { body: entryRunningBody } = await dipBrowser.request({
+      uri: `${this.urls.processRunning}${vorgangId}`,
     });
-    if (tabLength > 1) {
-      console.log(`#+#+#+#+#+#+#+#+#+#+#+#+#+# vorgangId: ${vorgangId}`);
-    }
+
+    const dataProcedureRunning = await Scraper.getProcedureRunningData({
+      html: entryRunningBody,
+    });
+
+    const procedureData = {
+      vorgangId,
+      ...dataProcedure,
+      ...dataProcedureRunning,
+    };
+    this.options.outScraperData({ procedureId, procedureData });
   }
 
-  async screenshot(path, page = this.page) {
-    let height = await this.page.evaluate(
-      () => document.documentElement.offsetHeight
-    );
-    await page.setViewport({ width: 1000, height: height });
-    await page.screenshot({ path });
+  getProcedureData = async ({ html }) => {
+    const xmlRegex = /<VORGANG>(.|[\r\n])*<\/VORGANG>/;
+    const xmlString = html.match(xmlRegex)[0].replace('<- VORGANGSABLAUF ->', '');
+    return x2j.xml2js(xmlString);
+  };
+
+  static async getProcedureRunningData({ html }) {
+    const xmlRegex = /<VORGANGSABLAUF>(.|[\r\n])*<\/VORGANGSABLAUF>/;
+    const xmlString = html.match(xmlRegex)[0];
+    return x2j.xml2js(xmlString);
   }
 
-  async clickWait(selector) {
-    try {
-      return await Promise.all([
-        this.page.click(selector),
-        this.page.waitForNavigation({
-          waitUntil: ["domcontentloaded"]
-        }),
-        this.page.waitForSelector("#footer")
-      ]);
-    } catch (error) {
-      console.log("TIMEOUT");
-    }
-  }
-
-  async finish() {
-    await this.browser.close();
-  }
+  timeout = async () => new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, _.random(1000, 5000));
+  })
 }
 
 module.exports = Scraper;
