@@ -1,6 +1,6 @@
 {
-  "name": "dip21-scraper",
-  "version": "0.0.2",
+  "name": "@democracy-deutschland/dip21-scraper",
+  "version": "0.1.0",
   "description": "scraper for the german \"Bundestag\"",
   "main": "distribution/scraper.js",
   "author": "Manuel Ruck",
@@ -13,7 +13,7 @@
     "dev": "babel-node --trace_gc src/cli.js",
     "lint": "eslint ./src",
     "build": "babel src --out-dir distribution",
-    "prepublish": "npm run build",
+    "prepare": "npm run build",
     "requesttest": "babel-node src/DipBrowser.js"
   },
   "dependencies": {
@@ -43,5 +43,18 @@
     "eslint-config-airbnb-base": "^12.1.0",
     "eslint-plugin-import": "^2.8.0",
     "prettier-eslint": "^8.8.1"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/demokratie-live/dip21-scraper.git"
+  },
+  "keywords": [
+    "scraper",
+    "bundestag",
+    "law"
+  ],
+  "bugs": {
+    "url": "https://github.com/demokratie-live/dip21-scraper/issues"
+  },
+  "homepage": "https://github.com/demokratie-live/dip21-scraper#readme"
 }
