@@ -67,7 +67,7 @@ class Scraper {
     while (!stackCreated) {
       try {
         this.stack = await Promise.all(this.createBrowserStack({
-          size: browserStackSize,
+          size: (browserStackSize === 0 ? 1 : browserStackSize),
         }));
         stackCreated = true;
       } catch (error) {
@@ -78,11 +78,18 @@ class Scraper {
     let hasData = false;
     while (!hasData) {
       try {
-        this.availableFilters = await this.takeSearchableValues();
+        this.availableFilters = await this.takeSearchableValues(this.stack[0]);
         hasData = true;
       } catch (error) {
         console.log('bundestag down (search)');
-        await this.timeout();
+        await this.timeout(10000, 10000);
+        await this.createNewBrowser({ browserObject: this.stack[0] })
+          .then(async (newBrowser) => {
+            this.stack[0] = newBrowser;
+          })
+          .catch(async (error2) => {
+            this.options.logError({ error2 });
+          });
       }
     }
     const filtersSelected = await this.configureFilter(this.availableFilters);
@@ -338,11 +345,8 @@ class Scraper {
     await browser.page.select('select#includeVorgangstyp', `${operationType.value}`);
   }
 
-  getFreeBrowser = () => this.stack.find(({ used }) => !used);
-
-  takeSearchableValues = async () => {
-    const browserObj = this.getFreeBrowser();
-    browserObj.used = true;
+  takeSearchableValues = async ({ browserObj }) => {
+    browserObj.used = true; // eslint-disable-line no-param-reassign
     const searchBody = await browserObj.browser.getBeratungsablaeufeSearchPage();
     const searchOptions = await browserObj.browser.getBeratungsablaeufeSearchOptions({
       body: searchBody,
@@ -350,7 +354,7 @@ class Scraper {
     if (searchOptions.vorgangstyp.length === 0) {
       throw new Error();
     }
-    browserObj.used = false;
+    browserObj.used = false; // eslint-disable-line no-param-reassign
     return {
       periods: searchOptions.wahlperioden,
       operationTypes: searchOptions.vorgangstyp,
@@ -472,11 +476,12 @@ class Scraper {
     return x2j.xml2js(xmlString);
   }
 
-  timeout = async () => new Promise((resolve) => {
-    setTimeout(() => {
-      resolve();
-    }, _.random(1000, 5000));
-  })
+  timeout = async ({ min, max } = { min: 1000, max: 5000 }) =>
+    new Promise((resolve) => {
+      setTimeout(() => {
+        resolve();
+      }, _.random(min, max));
+    });
 }
 
 module.exports = Scraper;
