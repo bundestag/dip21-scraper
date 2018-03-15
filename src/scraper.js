@@ -78,7 +78,7 @@ class Scraper {
     let hasData = false;
     while (!hasData) {
       try {
-        this.availableFilters = await this.takeSearchableValues(this.stack[0]);
+        this.availableFilters = await this.takeSearchableValues({ browserObject: this.stack[0] });
         hasData = true;
       } catch (error) {
         console.log('bundestag down (search)');
