@@ -2,7 +2,7 @@
 
 # dip21-scraper &nbsp; <a href="https://github.com/kriasoft/nodejs-api-starter/stargazers" target="_blank"><img src="https://img.shields.io/github/stars/bundestag/dip21-scraper.svg?style=social&label=Star&maxAge=3600" height="20"/></a>  <a href="https://twitter.com/democracy_de" target="_blank"><img src="https://img.shields.io/twitter/follow/democracy_de.svg?style=social&label=Follow&maxAge=3600" height="20"/></a>  <a href="https://www.facebook.com/democracygermany/" target="_blank"><img src="https://github.com/demokratie-live/democracy-assets/blob/master/docu/facebook.png" height="20"/></a>  <a href="https://discord.gg/Pdu3ZEV" target="_blank"><img src="https://github.com/demokratie-live/democracy-assets/blob/master/docu/discord.png" height="20"/></a>
 
-[![Build Status](https://travis-ci.org/bundestag/dip21-scraper.svg?branch=master)](https://travis-ci.org/bundestag/dip21-scraper) &nbsp;  [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/XXXX/badge)](https://bestpractices.coreinfrastructure.org/projects/XXXX)
+[![Build Status](https://travis-ci.org/bundestag/dip21-scraper.svg?branch=master)](https://travis-ci.org/bundestag/dip21-scraper)
 
 The dip21 Scraper for <a href="https://www.bundestag.de">Bundestag.de</a>.
 
