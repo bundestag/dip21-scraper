@@ -16,15 +16,15 @@ class Scraper {
   options = {
     selectPeriods: false,
     selectOperationTypes: false,
-    logStartSearchProgress: () => {},
-    logUpdateSearchProgress: () => {},
-    logStopSearchProgress: () => {},
-    logStartDataProgress: () => {},
-    logUpdateDataProgress: () => {},
-    logStopDataProgress: () => {},
-    logFinished: () => {},
-    logError: () => {},
-    outScraperData: () => {},
+    logStartSearchProgress: () => { },
+    logUpdateSearchProgress: () => { },
+    logStopSearchProgress: () => { },
+    logStartDataProgress: () => { },
+    logUpdateDataProgress: () => { },
+    logStopDataProgress: () => { },
+    logFinished: () => { },
+    logError: () => { },
+    outScraperData: () => { },
     doScrape: () => true,
     browserStackSize: 1,
     resultsPerPage: 200,
@@ -393,11 +393,17 @@ class Scraper {
     for (let i = resultInfos.pageCurrent; i <= resultInfos.pageSum; i += 1) {
       try {
         if (i !== 1) {
-          formData.offset = (i - 1) * this.options.resultsPerPage; // eslint-disable-line
+          const {
+            formMethod: newFormMethod,
+            formAction: newFormAction,
+            formData: newFormData,
+          } = await browser.browser.getBeratungsablaeufeSearchFormData({ body: searchResultBodyToAnalyse });
+          newFormData.method = '>'; // Next page can only be reached through this
+          newFormData.offset = (i - 1) * this.options.resultsPerPage;
           const { body: tmpBody } = await browser.browser.getSearchResultPage({
-            formMethod,
-            formAction,
-            formData,
+            formMethod: newFormMethod,
+            formAction: `http://dipbt.bundestag.de${newFormAction}`,
+            formData: newFormData,
           });
           searchResultBodyToAnalyse = tmpBody;
         }
