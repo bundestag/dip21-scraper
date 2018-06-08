@@ -516,7 +516,7 @@ class Scraper {
 
     const dataProcedure = await this.getProcedureData({ html: entryBody });
 
-    let procedureData = {};
+    let procedureData = false;
     if (scrapeVersion !== 'html') {
       const { body: entryRunningBody } = await dipBrowser.request({
         uri: `${this.urls.processRunning}${vorgangId}`,
@@ -552,7 +552,7 @@ class Scraper {
         };
       }
     }
-    if (procedureData.length > 0) {
+    if (procedureData) {
       this.options.outScraperData({ procedureId, procedureData });
     }
   }
