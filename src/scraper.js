@@ -446,13 +446,17 @@ class Scraper {
     for (let i = resultInfos.pageCurrent; i <= resultInfos.pageSum; i += 1) {
       try {
         if (i !== 1) {
+          const searchFormData = await browser.browser.getBeratungsablaeufeSearchFormData({
+            body: searchResultBodyToAnalyse,
+          });
+          let {
+            formData: newFormData,
+          } = searchFormData;
           const {
             formMethod: newFormMethod,
             formAction: newFormAction,
-            formData: newFormData,
-          } = await browser.browser.getBeratungsablaeufeSearchFormData({
-            body: searchResultBodyToAnalyse,
-          });
+          } = searchFormData;
+          newFormData = { ...formData, ...newFormData };
           newFormData.method = '>'; // Next page can only be reached through this
           newFormData.offset = (i - 1) * this.options.resultsPerPage;
           const { body: tmpBody } = await browser.browser.getSearchResultPage({
