@@ -7,6 +7,7 @@ const X2JS = require('x2js');
 const Url = require('url');
 const Querystring = require('querystring');
 const _ = require('lodash');
+const Entities = require('html-entities').AllHtmlEntities;
 
 const x2j = new X2JS();
 
@@ -34,8 +35,10 @@ class Scraper {
     basisInfos: 'https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail.do',
     processRunning:
       'https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail_vp.do?vorgangId=',
-    start: 'https://dipbt.bundestag.de/dip21.web/bt',
     search: 'https://dipbt.bundestag.de/dip21.web/searchProcedures.do;jsessionid=',
+    dipUrl: 'https://dipbt.bundestag.de',
+    startUrl: '/dip21.web/bt',
+    startHtmlUrl: '/extrakt/ba',
   };
 
   stack = [];
@@ -61,6 +64,7 @@ class Scraper {
 
   async scrape(options) {
     this.options = { ...this.options, ...options };
+
     const { browserStackSize } = this.options;
 
     let stackCreated = false;
@@ -75,13 +79,14 @@ class Scraper {
         await this.timeout();
       }
     }
+
     let hasData = false;
     while (!hasData) {
       try {
         this.availableFilters = await this.takeSearchableValues({ browserObj: this.stack[0] });
         hasData = true;
       } catch (error) {
-        console.log('bundestag down (search)');
+        console.log('bundestag down (search)', error);
         await this.timeout({ min: 10000, max: 10000 });
         await this.createNewBrowser({ browserObject: this.stack[0] })
           .then(async (newBrowser) => {
@@ -120,13 +125,25 @@ class Scraper {
     });
   }
 
+  encodedStr = (value) => {
+    const entities = new Entities();
+
+    return entities.encode(value);
+  };
+
   collectProcedures = async ({ periods, operationTypes }) => {
-    periods.forEach((period) => {
-      this.filters = [
-        ...this.filters,
-        ...operationTypes.map(operationType => ({ period, operationType, scraped: false })),
-      ];
-    });
+    if (this.options.type !== 'html') {
+      periods.forEach((period) => {
+        this.filters = [
+          ...this.filters,
+          ...operationTypes.map(operationType => ({ period, operationType, scraped: false })),
+        ];
+      });
+    } else {
+      periods.forEach((period) => {
+        this.filters = [...this.filters, { period, operationTypes, scraped: false }];
+      });
+    }
 
     this.status.search.instances.sum = this.filters.length;
 
@@ -141,23 +158,50 @@ class Scraper {
       const filterIndex = this.filters.findIndex(({ scraped }) => !scraped);
       this.filters[filterIndex].scraped = true;
       try {
-        const searchBody = await browser.browser.getBeratungsablaeufeSearchPage();
-        const {
-          formData,
-          formMethod,
-          formAction,
-        } = await browser.browser.getBeratungsablaeufeSearchFormData({ body: searchBody });
-        formData.wahlperiode = this.filters[filterIndex].period;
-        formData.vorgangstyp = this.filters[filterIndex].operationType;
-        formData.method = 'Suchen';
-        formData.anzahlTreffer = this.options.resultsPerPage;
+        if (this.options.type !== 'html') {
+          const searchBody = await browser.browser.getBeratungsablaeufeSearchPage();
+          const {
+            formData,
+            formMethod,
+            formAction,
+          } = await browser.browser.getBeratungsablaeufeSearchFormData({ body: searchBody });
+          formData.wahlperiode = this.filters[filterIndex].period;
+          formData.vorgangstyp = this.filters[filterIndex].operationType;
+          formData.method = 'Suchen';
+          formData.anzahlTreffer = this.options.resultsPerPage;
 
-        await this.startSearch({
-          browser,
-          formData,
-          formMethod,
-          formAction,
-        });
+          await this.startSearch({
+            browser,
+            formData,
+            formMethod,
+            formAction,
+          });
+        } else {
+          const { body: htmlPeriodBody } = await browser.browser.request({
+            uri: `/extrakt/ba/WP${this.filters[filterIndex].period}/index.html`,
+          });
+          const linkExp = new RegExp(
+            `<td>(?:${this.filters[filterIndex].operationTypes
+              .map(o => this.encodedStr(o))
+              .join('|')})<\/td>.*?href="(.*?)"`,
+            'gm',
+          );
+
+          this.procedures = [
+            ...this.procedures,
+            ...htmlPeriodBody.match(linkExp).map((s) => {
+              const linkPart = s.match(/href="(.*?)"/)[1];
+              const id = linkPart.match(/\/(\d+).html/);
+              return {
+                id: id[1],
+                url: `https://dipbt.bundestag.de/extrakt/ba/WP${
+                  this.filters[filterIndex].period
+                }/${linkPart}`,
+                scraped: false,
+              };
+            }),
+          ];
+        }
         this.status.search.instances.completed += 1;
         this.stack[browserIndex].errors = 0;
         this.options.logUpdateSearchProgress({ ...this.status, hasError });
@@ -205,6 +249,7 @@ class Scraper {
         this.procedures[linkIndex].scraped = true;
         await this.saveJson({
           link: this.procedures[linkIndex].url,
+          id: this.procedures[linkIndex].id,
           dipBrowser: this.stack[browserIndex].browser,
         })
           .then(async () => {
@@ -276,7 +321,7 @@ class Scraper {
     if (browserObject) {
       delete browserObject.browser; // eslint-disable-line
     }
-    const browser = new DipBrowser();
+    const browser = new DipBrowser(this.urls, { type: this.options.type });
     await browser.initialize();
     return {
       browser,
@@ -317,9 +362,16 @@ class Scraper {
         .map(({ number }) => number);
     }
 
+    if (this.options.type !== 'html') {
+      return {
+        periods: selectedPeriods.map(p => periods.find(({ name }) => name === p).value),
+        operationTypes: selectedOperationTypes.map(n => operationTypes.find(({ number }) => number === n).value),
+      };
+    }
     return {
-      periods: selectedPeriods.map(p => periods.find(({ name }) => name === p).value),
-      operationTypes: selectedOperationTypes.map(n => operationTypes.find(({ number }) => number === n).value),
+      periods: selectedPeriods.map(p => periods.find(({ name }) => name === p).name),
+      operationTypes: selectedOperationTypes.map(n =>
+        operationTypes.find(({ number }) => number === n).name.replace(`${n} - `, '')),
     };
   };
 
@@ -422,7 +474,7 @@ class Scraper {
     }
   };
 
-  async saveJson({ link, dipBrowser }) {
+  async saveJson({ id, link, dipBrowser }) {
     const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
     const { body: entryBody } = await dipBrowser.request({
       uri: link,
@@ -438,8 +490,11 @@ class Scraper {
       };
     }
     const urlObj = Url.parse(link);
-    const queryObj = Querystring.parse(urlObj.query);
-    const vorgangId = queryObj.selId;
+    let vorgangId = id;
+    if (this.options.type !== 'html') {
+      const queryObj = Querystring.parse(urlObj.query);
+      vorgangId = queryObj.selId;
+    }
     if (procedureId.split('-')[1] !== vorgangId) {
       const error = new Error(`Procedure ID missmatch URL: "${vorgangId}" to HTML: "${procedureId.split('-')[1]}"`);
       throw {
@@ -450,19 +505,30 @@ class Scraper {
 
     const dataProcedure = await this.getProcedureData({ html: entryBody });
 
-    const { body: entryRunningBody } = await dipBrowser.request({
-      uri: `${this.urls.processRunning}${vorgangId}`,
-    });
+    let procedureData = {};
+    if (this.options.type !== 'html') {
+      const { body: entryRunningBody } = await dipBrowser.request({
+        uri: `${this.urls.processRunning}${vorgangId}`,
+      });
 
-    const dataProcedureRunning = await Scraper.getProcedureRunningData({
-      html: entryRunningBody,
-    });
+      const dataProcedureRunning = await Scraper.getProcedureRunningData({
+        html: entryRunningBody,
+      });
 
-    const procedureData = {
-      vorgangId,
-      ...dataProcedure,
-      ...dataProcedureRunning,
-    };
+      procedureData = {
+        vorgangId,
+        ...dataProcedure,
+        ...dataProcedureRunning,
+      };
+    } else {
+      const { VORGANGSABLAUF } = dataProcedure.VORGANG;
+      delete dataProcedure.VORGANG.VORGANGSABLAUF;
+      procedureData = {
+        vorgangId,
+        ...dataProcedure,
+        VORGANGSABLAUF,
+      };
+    }
     this.options.outScraperData({ procedureId, procedureData });
   }
 

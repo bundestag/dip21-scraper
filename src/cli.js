@@ -155,6 +155,7 @@ scraper
     outScraperData,
     browserStackSize: _.toInteger(program.stacksize),
     logError,
+    type: 'live',
   })
   .catch((error) => {
     console.error(error);
