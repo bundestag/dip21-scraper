@@ -156,7 +156,8 @@ scraper
     outScraperData,
     browserStackSize: _.toInteger(program.stacksize),
     logError,
-    type: program.html || 'live',
+    scrapeType: program.html || 'live',
+    liveScrapeStates: ['Beschlussempfehlung liegt vor', 'Überwiesen'],
   })
   .catch((error) => {
     console.error(error);

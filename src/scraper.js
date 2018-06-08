@@ -29,6 +29,8 @@ class Scraper {
     doScrape: () => true,
     browserStackSize: 1,
     resultsPerPage: 200,
+    scrapeType: 'live',
+    liveScrapeStates: [],
   };
 
   urls = {
@@ -132,7 +134,7 @@ class Scraper {
   };
 
   collectProcedures = async ({ periods, operationTypes }) => {
-    if (this.options.type !== 'html') {
+    if (this.options.scrapeType !== 'html') {
       periods.forEach((period) => {
         this.filters = [
           ...this.filters,
@@ -158,7 +160,7 @@ class Scraper {
       const filterIndex = this.filters.findIndex(({ scraped }) => !scraped);
       this.filters[filterIndex].scraped = true;
       try {
-        if (this.options.type !== 'html') {
+        if (this.options.scrapeType !== 'html') {
           const searchBody = await browser.browser.getBeratungsablaeufeSearchPage();
           const {
             formData,
@@ -251,7 +253,7 @@ class Scraper {
           link: this.procedures[linkIndex].url,
           id: this.procedures[linkIndex].id,
           dipBrowser: this.stack[browserIndex].browser,
-          scrapeVersion: this.options.type,
+          scrapeVersion: this.options.scrapeType,
         })
           .then(async () => {
             this.completedLinks += 1;
@@ -322,7 +324,7 @@ class Scraper {
     if (browserObject) {
       delete browserObject.browser; // eslint-disable-line
     }
-    const browser = new DipBrowser(this.urls, { type: this.options.type });
+    const browser = new DipBrowser(this.urls, { scrapeType: this.options.scrapeType });
     await browser.initialize();
     return {
       browser,
@@ -363,7 +365,7 @@ class Scraper {
         .map(({ number }) => number);
     }
 
-    if (this.options.type !== 'html') {
+    if (this.options.scrapeType !== 'html') {
       return {
         periods: selectedPeriods.map(p => periods.find(({ name }) => name === p).value),
         operationTypes: selectedOperationTypes.map(n => operationTypes.find(({ number }) => number === n).value),
@@ -449,13 +451,8 @@ class Scraper {
           const searchFormData = await browser.browser.getBeratungsablaeufeSearchFormData({
             body: searchResultBodyToAnalyse,
           });
-          let {
-            formData: newFormData,
-          } = searchFormData;
-          const {
-            formMethod: newFormMethod,
-            formAction: newFormAction,
-          } = searchFormData;
+          let { formData: newFormData } = searchFormData;
+          const { formMethod: newFormMethod, formAction: newFormAction } = searchFormData;
           newFormData = { ...formData, ...newFormData };
           newFormData.method = '>'; // Next page can only be reached through this
           newFormData.offset = (i - 1) * this.options.resultsPerPage;
@@ -538,15 +535,16 @@ class Scraper {
     } else {
       const { VORGANGSABLAUF } = dataProcedure.VORGANG;
       delete dataProcedure.VORGANG.VORGANGSABLAUF;
-      if (dataProcedure.VORGANG.AKTUELLER_STAND === 'Beschlussempfehlung liegt vor') {
+
+      if (
+        this.options.liveScrapeStates.find(state => dataProcedure.VORGANG.AKTUELLER_STAND === state)
+      ) {
         const dipLink = entryBody.match(/<a class="linkExtern" href="(.*?)"><strong>Weitere Details in DIP...<\/strong><\/a>/)[1];
         await this.saveJson({
           id,
           link: dipLink,
           dipBrowser,
           scrapeVersion: 'live',
-        }).catch((error) => {
-          throw error;
         });
       } else {
         procedureData = {

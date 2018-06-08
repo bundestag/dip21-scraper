@@ -3,12 +3,10 @@ const request = require('request');
 class DipBrowser {
   cookie = null;
   urls = {};
-  type = 'live';
 
-  constructor(urls, { type }) {
+  constructor(urls) {
     this.urls = urls;
     this.cookie = request.jar();
-    this.type = type;
   }
 
   initialize = async () => {
