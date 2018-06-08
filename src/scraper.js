@@ -17,15 +17,15 @@ class Scraper {
   options = {
     selectPeriods: false,
     selectOperationTypes: false,
-    logStartSearchProgress: () => { },
-    logUpdateSearchProgress: () => { },
-    logStopSearchProgress: () => { },
-    logStartDataProgress: () => { },
-    logUpdateDataProgress: () => { },
-    logStopDataProgress: () => { },
-    logFinished: () => { },
-    logError: () => { },
-    outScraperData: () => { },
+    logStartSearchProgress: () => {},
+    logUpdateSearchProgress: () => {},
+    logStopSearchProgress: () => {},
+    logStartDataProgress: () => {},
+    logUpdateDataProgress: () => {},
+    logStopDataProgress: () => {},
+    logFinished: () => {},
+    logError: () => {},
+    outScraperData: () => {},
     doScrape: () => true,
     browserStackSize: 1,
     resultsPerPage: 200,
@@ -251,6 +251,7 @@ class Scraper {
           link: this.procedures[linkIndex].url,
           id: this.procedures[linkIndex].id,
           dipBrowser: this.stack[browserIndex].browser,
+          scrapeVersion: this.options.type,
         })
           .then(async () => {
             this.completedLinks += 1;
@@ -449,7 +450,9 @@ class Scraper {
             formMethod: newFormMethod,
             formAction: newFormAction,
             formData: newFormData,
-          } = await browser.browser.getBeratungsablaeufeSearchFormData({ body: searchResultBodyToAnalyse });
+          } = await browser.browser.getBeratungsablaeufeSearchFormData({
+            body: searchResultBodyToAnalyse,
+          });
           newFormData.method = '>'; // Next page can only be reached through this
           newFormData.offset = (i - 1) * this.options.resultsPerPage;
           const { body: tmpBody } = await browser.browser.getSearchResultPage({
@@ -480,7 +483,9 @@ class Scraper {
     }
   };
 
-  async saveJson({ id, link, dipBrowser }) {
+  async saveJson({
+    id, link, dipBrowser, scrapeVersion,
+  }) {
     const procedureIdRegex = /\[ID:&nbsp;(.*?)\]/;
     const { body: entryBody } = await dipBrowser.request({
       uri: link,
@@ -497,9 +502,9 @@ class Scraper {
     }
     const urlObj = Url.parse(link);
     let vorgangId = id;
-    if (this.options.type !== 'html') {
+    if (scrapeVersion !== 'html') {
       const queryObj = Querystring.parse(urlObj.query);
-      vorgangId = queryObj.selId;
+      vorgangId = queryObj.selId || id;
     }
     if (procedureId.split('-')[1] !== vorgangId) {
       const error = new Error(`Procedure ID missmatch URL: "${vorgangId}" to HTML: "${procedureId.split('-')[1]}"`);
@@ -512,7 +517,7 @@ class Scraper {
     const dataProcedure = await this.getProcedureData({ html: entryBody });
 
     let procedureData = {};
-    if (this.options.type !== 'html') {
+    if (scrapeVersion !== 'html') {
       const { body: entryRunningBody } = await dipBrowser.request({
         uri: `${this.urls.processRunning}${vorgangId}`,
       });
@@ -529,13 +534,27 @@ class Scraper {
     } else {
       const { VORGANGSABLAUF } = dataProcedure.VORGANG;
       delete dataProcedure.VORGANG.VORGANGSABLAUF;
-      procedureData = {
-        vorgangId,
-        ...dataProcedure,
-        VORGANGSABLAUF,
-      };
+      if (dataProcedure.VORGANG.AKTUELLER_STAND === 'Beschlussempfehlung liegt vor') {
+        const dipLink = entryBody.match(/<a class="linkExtern" href="(.*?)"><strong>Weitere Details in DIP...<\/strong><\/a>/)[1];
+        await this.saveJson({
+          id,
+          link: dipLink,
+          dipBrowser,
+          scrapeVersion: 'live',
+        }).catch((error) => {
+          throw error;
+        });
+      } else {
+        procedureData = {
+          vorgangId,
+          ...dataProcedure,
+          VORGANGSABLAUF,
+        };
+      }
     }
-    this.options.outScraperData({ procedureId, procedureData });
+    if (procedureData.length > 0) {
+      this.options.outScraperData({ procedureId, procedureData });
+    }
   }
 
   getProcedureData = async ({ html }) => {
