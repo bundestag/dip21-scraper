@@ -1,6 +1,6 @@
 {
   "name": "@democracy-deutschland/dip21-scraper",
-  "version": "0.1.5-0",
+  "version": "0.1.5-1",
   "description": "scraper for the german \"Bundestag\"",
   "main": "distribution/scraper.js",
   "author": "Manuel Ruck",
