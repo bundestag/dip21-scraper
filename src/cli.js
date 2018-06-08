@@ -149,7 +149,7 @@ const logError = ({ error }) => {
   process.stdout.write('\n');
   console.log(error);
 };
-console.log(program.importantState ? program.importantState : []);
+
 scraper
   .scrape({
     selectPeriods,
