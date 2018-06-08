@@ -22,6 +22,7 @@ program
   )
   .option('-s, --stacksize <Integer>', 'size of paralell browsers', 1)
   .option('-q, --quiet', 'Silent Mode - No Outputs')
+  .option('--html', 'scrape html version', 'html')
   .parse(process.argv);
 
 const scraper = new Scraper();
@@ -155,7 +156,7 @@ scraper
     outScraperData,
     browserStackSize: _.toInteger(program.stacksize),
     logError,
-    type: 'live',
+    type: program.html || 'live',
   })
   .catch((error) => {
     console.error(error);
