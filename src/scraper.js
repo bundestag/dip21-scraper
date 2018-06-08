@@ -185,7 +185,7 @@ class Scraper {
           const linkExp = new RegExp(
             `<td>(?:${this.filters[filterIndex].operationTypes
               .map(o => this.encodedStr(o))
-              .join('|')})<\/td>.*?href="(.*?)"`,
+              .join('|')})</td>.*?href="(.*?)"`,
             'gm',
           );
 
