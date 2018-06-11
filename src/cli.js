@@ -11,6 +11,11 @@ const _ = require('lodash');
 const prettyMs = require('pretty-ms');
 const chalk = require('chalk');
 
+const appender = (xs = []) => (x) => {
+  xs.push(x);
+  return xs;
+};
+
 program
   .version('0.1.0')
   .description('Bundestag scraper')
@@ -22,6 +27,8 @@ program
   )
   .option('-s, --stacksize <Integer>', 'size of paralell browsers', 1)
   .option('-q, --quiet', 'Silent Mode - No Outputs')
+  .option('--html', 'scrape html version', 'html')
+  .option('--importantState [value]', 'states to scrape from live', appender(), '')
   .parse(process.argv);
 
 const scraper = new Scraper();
@@ -155,6 +162,8 @@ scraper
     outScraperData,
     browserStackSize: _.toInteger(program.stacksize),
     logError,
+    scrapeType: program.html || 'live',
+    liveScrapeStates: program.importantState ? program.importantState : [],
   })
   .catch((error) => {
     console.error(error);

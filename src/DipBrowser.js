@@ -1,18 +1,18 @@
 const request = require('request');
 
 class DipBrowser {
-  dipUrl = 'https://dipbt.bundestag.de';
-  startUrl = '/dip21.web/bt';
   cookie = null;
+  urls = {};
 
-  constructor() {
+  constructor(urls) {
+    this.urls = urls;
     this.cookie = request.jar();
   }
 
   initialize = async () => {
     await this.request({
       ...this.defReqOpt,
-      uri: this.startUrl,
+      uri: this.urls.startUrl,
     });
   };
 
@@ -25,7 +25,7 @@ class DipBrowser {
     };
 
     if (reqOptions.uri.substr(0, 4) !== 'http') {
-      reqOptions.uri = `${this.dipUrl}${reqOptions.uri}`;
+      reqOptions.uri = `${this.urls.dipUrl}${reqOptions.uri}`;
     }
 
     return new Promise((resolve, reject) => {
