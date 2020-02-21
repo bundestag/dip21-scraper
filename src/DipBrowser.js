@@ -1,4 +1,5 @@
 const request = require('request');
+const UserAgent = require('user-agents');
 
 class DipBrowser {
   cookie = null;
@@ -28,8 +29,12 @@ class DipBrowser {
       reqOptions.uri = `${this.urls.dipUrl}${reqOptions.uri}`;
     }
 
+    const headers = {
+      'User-Agent': new UserAgent(),
+    };
+
     return new Promise((resolve, reject) => {
-      request(reqOptions, (error, res, body) => {
+      request({ ...reqOptions, headers }, (error, res, body) => {
         if (!error && res.statusCode === 200) {
           resolve({ res, body });
         } else {
