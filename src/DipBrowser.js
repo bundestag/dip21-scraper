@@ -1,5 +1,4 @@
 const request = require('request');
-const UserAgent = require('user-agents');
 
 class DipBrowser {
   cookie = null;
@@ -29,8 +28,9 @@ class DipBrowser {
       reqOptions.uri = `${this.urls.dipUrl}${reqOptions.uri}`;
     }
 
+
     const headers = {
-      'User-Agent': new UserAgent(),
+      'User-Agent': process.env.SCRAPER_USER_AGEND,
     };
 
     return new Promise((resolve, reject) => {

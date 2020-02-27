@@ -1086,11 +1086,6 @@ detect-indent@^4.0.0:
   dependencies:
     repeating "^2.0.0"
 
-detect-indent@~6.0.0:
-  version "6.0.0"
-  resolved "https://registry.yarnpkg.com/detect-indent/-/detect-indent-6.0.0.tgz#0abd0f549f69fc6659a254fe96786186b6f528fd"
-  integrity sha512-oSyFlqaTHCItVRGK5RmrmjB+CmaMOW7IaNA/kdxqhoa6d17j/5ce9O9eWXmV/KEdRwqpQA+Vqe8a8Bsybu4YnA==
-
 detect-libc@^1.0.2:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/detect-libc/-/detect-libc-1.0.3.tgz#fa137c4bd698edf55cd5cd02ac559f91a4c4ba9b"
@@ -1098,11 +1093,6 @@ detect-libc@^1.0.2:
 dlv@^1.1.0:
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/dlv/-/dlv-1.1.1.tgz#c79d96bfe659a5568001250ed2aaf653992bdd3f"
-
-docopt@~0.6.2:
-  version "0.6.2"
-  resolved "https://registry.yarnpkg.com/docopt/-/docopt-0.6.2.tgz#b28e9e2220da5ec49f7ea5bb24a47787405eeb11"
-  integrity sha1-so6eIiDaXsSffqW7JKR3h0Be6xE=
 
 doctrine@1.5.0:
   version "1.5.0"
@@ -1116,15 +1106,6 @@ doctrine@^2.1.0:
   resolved "https://registry.yarnpkg.com/doctrine/-/doctrine-2.1.0.tgz#5cd01fc101621b42c4cd7f5d1a66243716d3f39d"
   dependencies:
     esutils "^2.0.2"
-
-dot-json@^1.2.0:
-  version "1.2.0"
-  resolved "https://registry.yarnpkg.com/dot-json/-/dot-json-1.2.0.tgz#16f62bbb15b0b834f5c8de299cfb9e4d494f2ac1"
-  integrity sha512-4bEM7KHFl/U9gAI5nIvU0/fwVzNnE713K339vcxAMtxd2D9mZP6o65UwlcXigJL4rfk90UM0J+D7IPIFYZMQ8Q==
-  dependencies:
-    detect-indent "~6.0.0"
-    docopt "~0.6.2"
-    underscore-keypath "~0.0.22"
 
 ecc-jsbn@~0.1.1:
   version "0.1.1"
@@ -1953,11 +1934,6 @@ locate-path@^2.0.0:
   dependencies:
     p-locate "^2.0.0"
     path-exists "^3.0.0"
-
-lodash.clonedeep@^4.5.0:
-  version "4.5.0"
-  resolved "https://registry.yarnpkg.com/lodash.clonedeep/-/lodash.clonedeep-4.5.0.tgz#e23f3f9c4f8fbdde872529c1071857a086e5ccef"
-  integrity sha1-4j8/nE+Pvd6HJSnBBxhXoIblzO8=
 
 lodash.merge@^4.6.0:
   version "4.6.1"
@@ -2937,18 +2913,6 @@ uid-number@^0.0.6:
   version "0.0.6"
   resolved "https://registry.yarnpkg.com/uid-number/-/uid-number-0.0.6.tgz#0ea10e8035e8eb5b8e4449f06da1c730663baa81"
 
-underscore-keypath@~0.0.22:
-  version "0.0.22"
-  resolved "https://registry.yarnpkg.com/underscore-keypath/-/underscore-keypath-0.0.22.tgz#48a528392bb6efc424be1caa56da4b5faccf264d"
-  integrity sha1-SKUoOSu278QkvhyqVtpLX6zPJk0=
-  dependencies:
-    underscore "*"
-
-underscore@*:
-  version "1.9.2"
-  resolved "https://registry.yarnpkg.com/underscore/-/underscore-1.9.2.tgz#0c8d6f536d6f378a5af264a72f7bec50feb7cf2f"
-  integrity sha512-D39qtimx0c1fI3ya1Lnhk3E9nONswSKhnffBI0gME9C99fYOkNi04xs8K6pePLhvl1frbDemkaBQ5ikWllR2HQ==
-
 universalify@^0.1.0:
   version "0.1.1"
   resolved "https://registry.yarnpkg.com/universalify/-/universalify-0.1.1.tgz#fa71badd4437af4c148841e3b3b165f9e9e590b7"
@@ -2958,14 +2922,6 @@ uri-js@^4.2.1:
   resolved "https://registry.yarnpkg.com/uri-js/-/uri-js-4.2.2.tgz#94c540e1ff772956e2299507c010aea6c8838eb0"
   dependencies:
     punycode "^2.1.0"
-
-user-agents@^1.0.539:
-  version "1.0.539"
-  resolved "https://registry.yarnpkg.com/user-agents/-/user-agents-1.0.539.tgz#25b7b680f5333e68f70050b0bd096f93720d071f"
-  integrity sha512-947vN0g6m2KJhc0baw9rokevdzJDTQL7DLlXm9v3wQ6imN2flLm3npr+IolWgjQSswhP9ltxavCUq3L0xxAllA==
-  dependencies:
-    dot-json "^1.2.0"
-    lodash.clonedeep "^4.5.0"
 
 user-home@^1.1.1:
   version "1.1.1"
