@@ -28,7 +28,6 @@ class DipBrowser {
       reqOptions.uri = `${this.urls.dipUrl}${reqOptions.uri}`;
     }
 
-
     const headers = {
       'User-Agent': process.env.SCRAPER_USER_AGEND,
     };
@@ -131,20 +130,22 @@ class DipBrowser {
   };
 
   getEntries = ({ body }) => {
-    const table = body.match(/<table summary="Ergebnisliste">(.|[\r\n])*?<\/table>/);
-
-    const re = /<a.*?class="linkIntern".*?href="(.*?)">(?:.|\s)*?<\/a>(?:.|\s)*?<\/td><td>([0-9]*.[0-9]*.[0-9]*)<\/td>/g;
+    const table = body.match(/<table.*?summary="Ergebnisliste">(.|[\r\n])*?<\/table>/);
+    const re = /<a.*?href="(.*?)">(?:.|\s)*?<\/a>(?:.|\s)*?<\/td><td.*?>([0-9]*.[0-9]*.[0-9]*)<\/td>/g;
     let m;
     const data = [];
     do {
       m = re.exec(table[0]);
-      if (m) {
-        data.push({
-          id: m[1].match(/selId=(\d.*?)&/)[1],
-          url: m[1].replace('&amp;', '&'),
-          date: m[2],
-          scraped: false,
-        });
+      if (m && m[1]) {
+        const urlMatch = m[1].match(/selId=(\d.*?)&/);
+        if (urlMatch) {
+          data.push({
+            id: urlMatch[1],
+            url: m[1].replace('&amp;', '&'),
+            date: m[2],
+            scraped: false,
+          });
+        }
       }
     } while (m);
 

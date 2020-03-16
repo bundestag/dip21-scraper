@@ -14,6 +14,21 @@ const x2j = new X2JS();
 process.setMaxListeners(Infinity);
 
 class Scraper {
+  constructor(props) {
+    if (!props.baseUrl) {
+      throw new Error('missing base url');
+    }
+    this.baseUrl = props.baseUrl;
+    this.urls = {
+      processRunning: `https://${
+        this.baseUrl
+      }/dip21.web/searchProcedures/simple_search_detail_vp.do?vorgangId=`,
+      search: `https://${this.baseUrl}/dip21.web/searchProcedures.do;jsessionid=`,
+      dipUrl: `https://${this.baseUrl}`,
+      startUrl: '/dip21.web/bt',
+    };
+  }
+
   options = {
     selectPeriods: false,
     selectOperationTypes: false,
@@ -31,16 +46,6 @@ class Scraper {
     resultsPerPage: 200,
     scrapeType: 'live',
     liveScrapeStates: [],
-  };
-
-  urls = {
-    basisInfos: 'https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail.do',
-    processRunning:
-      'https://dipbt.bundestag.de/dip21.web/searchProcedures/simple_search_detail_vp.do?vorgangId=',
-    search: 'https://dipbt.bundestag.de/dip21.web/searchProcedures.do;jsessionid=',
-    dipUrl: 'https://dipbt.bundestag.de',
-    startUrl: '/dip21.web/bt',
-    startHtmlUrl: '/extrakt/ba',
   };
 
   stack = [];
@@ -458,7 +463,7 @@ class Scraper {
           newFormData.offset = (i - 1) * this.options.resultsPerPage;
           const { body: tmpBody } = await browser.browser.getSearchResultPage({
             formMethod: newFormMethod,
-            formAction: `http://dipbt.bundestag.de${newFormAction}`,
+            formAction: `http://${this.baseUrl}${newFormAction}`,
             formData: newFormData,
           });
           searchResultBodyToAnalyse = tmpBody;

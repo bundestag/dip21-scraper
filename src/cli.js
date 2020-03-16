@@ -25,13 +25,16 @@ program
     'Select specified OperationTypes [null]',
     null,
   )
+  .option('-u, --url [value]', 'Base url of dip21', 'dip21.bundestag.de')
   .option('-s, --stacksize <Integer>', 'size of paralell browsers', 1)
   .option('-q, --quiet', 'Silent Mode - No Outputs')
   .option('--html', 'scrape html version', 'html')
   .option('--importantState [value]', 'states to scrape from live', appender(), '')
   .parse(process.argv);
 
-const scraper = new Scraper();
+const scraper = new Scraper({
+  baseUrl: program.url,
+});
 
 const selectPeriods = async ({ periods }) => {
   let selectedPeriod = program.periods;
