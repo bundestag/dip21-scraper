@@ -2,24 +2,32 @@
   "name": "@democracy-deutschland/dip21-scraper",
   "version": "0.1.9",
   "description": "scraper for the german \"Bundestag\"",
-  "main": "distribution/scraper.js",
+  "main": "dist/scraper.js",
   "author": "Manuel Ruck",
   "license": "Apache-2.0",
   "bin": {
-    "dip21-scraper": "distribution/cli.js"
+    "dip21-scraper": "dist/cli.js"
   },
   "scripts": {
-    "start": "babel-node src/cli.js",
-    "dev": "babel-node src/cli.js",
+    "start": "node dist/dist/cli.js",
+    "dev": "ts-node-dev src/cli.ts",
     "lint": "eslint ./src",
-    "build": "babel src --out-dir distribution",
+    "lint:ts": "tsc --noEmit",
+    "build": "tsc",
     "prepare": "npm run build",
     "requesttest": "babel-node src/DipBrowser.js"
   },
   "dependencies": {
+    "@types/fs-extra": "^8.1.0",
+    "@types/html-entities": "^1.2.16",
+    "@types/inquirer": "^6.5.0",
+    "@types/jsonfile": "^5.0.0",
+    "@types/lodash": "^4.14.149",
+    "axios": "^0.19.2",
+    "axios-cookiejar-support": "^0.5.1",
     "chalk": "^2.3.1",
     "colors": "^1.1.2",
-    "commander": "^2.13.0",
+    "commander": "^5.0.0",
     "fs-extra": "^5.0.0",
     "html-entities": "^1.2.1",
     "inquirer": "^5.0.1",
@@ -28,11 +36,13 @@
     "log": "^1.4.0",
     "node-gyp": "^3.6.2",
     "pretty-ms": "^3.1.0",
-    "request": "^2.83.0",
+    "querystring": "^0.2.0",
     "request-cookies": "^1.1.0",
+    "tough-cookie": "^4.0.0",
     "x2js": "^3.1.1"
   },
   "devDependencies": {
+    "@types/request": "^2.48.4",
     "babel-cli": "^6.26.0",
     "babel-eslint": "^8.2.1",
     "babel-plugin-transform-class-properties": "^6.24.1",
@@ -43,7 +53,9 @@
     "eslint": "^4.17.0",
     "eslint-config-airbnb-base": "^12.1.0",
     "eslint-plugin-import": "^2.8.0",
-    "prettier-eslint": "^8.8.1"
+    "prettier-eslint": "^8.8.1",
+    "ts-node-dev": "^1.0.0-pre.44",
+    "typescript": "^3.8.3"
   },
   "repository": {
     "type": "git",

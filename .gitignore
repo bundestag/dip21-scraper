@@ -1,6 +1,6 @@
 node_modules
 files/*
-distribution
+dist
 screenshot.png
 *.log
 /procedures.json
